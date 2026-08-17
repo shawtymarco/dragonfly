@@ -18,6 +18,7 @@ type Console struct {
 
 func (Console) Name() string         { return "CONSOLE" }
 func (Console) Position() mgl64.Vec3 { return mgl64.Vec3{} }
+func (Console) Operator() bool       { return true }
 
 func (c Console) SendCommandOutput(o *cmd.Output) {
 	for _, m := range o.Messages() {

@@ -58,6 +58,7 @@ type Server struct {
 	// p holds a map of all players currently connected to the server. When they
 	// leave, they are removed from the map.
 	p map[uuid.UUID]*onlinePlayer
+	ops *operators
 	// pwg is a sync.WaitGroup used to wait for all players to be disconnected
 	// before server shutdown, so that their data is saved properly.
 	pwg sync.WaitGroup
@@ -475,6 +476,9 @@ func (srv *Server) wait() {
 func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listener) {
 	id := uuid.MustParse(conn.IdentityData().Identity)
 	data := srv.defaultGameData()
+	if srv.IsOp(conn.IdentityData().DisplayName) {
+		data.PlayerPermissions = packet.PermissionLevelOperator
+	}
 
 	d, w, err := srv.conf.PlayerProvider.Load(id, srv.dimension)
 	if err != nil {
@@ -600,6 +604,7 @@ func (srv *Server) createPlayer(id uuid.UUID, conn session.Conn, conf player.Con
 	conf.Locale, _ = language.Parse(strings.Replace(conn.ClientData().LanguageCode, "_", "-", 1))
 	conf.Skin = srv.parseSkin(conn.ClientData())
 	conf.Session = s
+	conf.Operator = srv.IsOp(conf.Name)
 
 	handle := world.EntitySpawnOpts{Position: conf.Position, ID: id}.New(player.Type, conf)
 	s.SetHandle(handle, conf.Skin)

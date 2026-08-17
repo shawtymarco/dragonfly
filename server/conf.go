@@ -135,6 +135,8 @@ type Config struct {
 	// DisableEnd, if true, does not create the end world. End portals stay in
 	// the current world.
 	DisableEnd bool
+	// OperatorsFile is the PMMP-style ops.txt path. Empty uses "ops.txt".
+	OperatorsFile string
 }
 
 // New creates a Server using fields of conf. The Server's worlds are created
@@ -191,10 +193,14 @@ func (conf Config) New() *Server {
 	// Copy resources so that the slice can't be edited afterward.
 	conf.Resources = slices.Clone(conf.Resources)
 
+	if conf.OperatorsFile == "" {
+		conf.OperatorsFile = "ops.txt"
+	}
 	srv := &Server{
 		conf:     conf,
 		incoming: make(chan incoming),
 		p:        make(map[uuid.UUID]*onlinePlayer),
+		ops:      loadOperators(conf.OperatorsFile),
 		world:    &world.World{}, nether: &world.World{}, end: &world.World{},
 	}
 	for _, lf := range conf.Listeners {
@@ -245,6 +251,8 @@ type UserConfig struct {
 		DisableJoinQuitMessages bool
 		// MuteEmoteChat specifies if the player emote chat should be muted or not.
 		MuteEmoteChat bool
+		// OperatorsFile is the ops.txt path (PMMP-style operator names). Empty uses "ops.txt".
+		OperatorsFile string
 	}
 	World struct {
 		// SaveData controls whether a world's data will be saved and loaded.
@@ -310,6 +318,7 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		DisableResourceBuilding: !uc.Resources.AutoBuildPack,
 		DisableNether:           uc.World.DisableNether,
 		DisableEnd:              uc.World.DisableEnd,
+		OperatorsFile:           uc.Server.OperatorsFile,
 	}
 	if !uc.Server.DisableJoinQuitMessages {
 		conf.JoinMessage, conf.QuitMessage = chat.MessageJoin, chat.MessageQuit
