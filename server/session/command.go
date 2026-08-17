@@ -213,6 +213,9 @@ func valueToParamType(i cmd.ParamInfo, source cmd.Source) (t uint32, enum comman
 			Options: enum.Options(source),
 		}
 	}
+	if param, ok := i.Value.(cmd.Parameter); ok && param.Type() == "x y z" {
+		return protocol.CommandArgTypePosition, enum
+	}
 	return protocol.CommandArgTypeRValue, enum
 }
 
