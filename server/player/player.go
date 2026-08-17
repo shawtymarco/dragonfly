@@ -49,6 +49,7 @@ type playerData struct {
 	scale             float64
 
 	gameMode world.GameMode
+	operator bool
 	skin     skin.Skin
 	s        *session.Session
 	h        Handler
@@ -1544,6 +1545,17 @@ func (p *Player) SetGameMode(mode world.GameMode) {
 // The game mode may be changed using Player.SetGameMode().
 func (p *Player) GameMode() world.GameMode {
 	return p.gameMode
+}
+
+// Operator reports whether the player is a server operator (PMMP ops.txt).
+func (p *Player) Operator() bool {
+	return p.operator
+}
+
+// SetOperator grants or revokes operator abilities and updates the client.
+func (p *Player) SetOperator(op bool) {
+	p.operator = op
+	p.session().SendAbilities(p)
 }
 
 // HasCooldown returns true if the item passed has an active cooldown, meaning it currently cannot be used again. If the

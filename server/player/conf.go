@@ -26,6 +26,7 @@ type Config struct {
 	Name     string
 	Locale   language.Tag
 	GameMode world.GameMode
+	Operator bool
 
 	Position               mgl64.Vec3
 	Rotation               cube.Rotation
@@ -72,6 +73,7 @@ func (cfg Config) Apply(data *world.EntityData) {
 		mc:                  &entity.MovementComputer{Gravity: 0.08, Drag: 0.02, DragBeforeGravity: true},
 		heldSlot:            &slot,
 		gameMode:            conf.GameMode,
+		operator:            conf.Operator,
 		skin:                conf.Skin,
 		enchantSeed:         conf.EnchantmentSeed,
 		s:                   conf.Session,
