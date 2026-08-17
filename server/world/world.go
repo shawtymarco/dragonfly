@@ -72,6 +72,10 @@ type World struct {
 	// can find the correct Entity.
 	entities map[*EntityHandle]ChunkPos
 
+	// tickDurations holds the last 20 world-tick durations for TPS/load stats.
+	tickDurations [20]atomic.Int64
+	tickCount     atomic.Uint64
+
 	r *rand.Rand
 
 	// scheduledUpdates is a map of tick time values indexed by the block

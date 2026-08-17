@@ -112,6 +112,17 @@ func (srv *Server) Listen() {
 	srv.conf.Log.Info("Dragonfly server started.", "mc-version", protocol.CurrentVersion, "go-version", info.GoVersion, "commit", revision)
 	srv.startListening()
 	go srv.wait()
+	go srv.listenConsole()
+}
+
+// StartTime returns the time Listen was first called. The zero time is returned
+// if the server has not started.
+func (srv *Server) StartTime() time.Time {
+	t := srv.started.Load()
+	if t == nil {
+		return time.Time{}
+	}
+	return *t
 }
 
 // Accept accepts incoming players into the server, returning an iterator that

@@ -24,7 +24,9 @@ func (t ticker) tickLoop(w *World) {
 	for {
 		select {
 		case <-tc.C:
+			start := time.Now()
 			<-w.exec(t.tick)
+			w.recordTickDuration(time.Since(start))
 		case <-w.closing:
 			// World is being closed: Stop ticking and get rid of a task.
 			w.running.Done()
