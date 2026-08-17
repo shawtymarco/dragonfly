@@ -5,7 +5,9 @@ CastleOnline uses this via `replace`. Sync from `df-mc/dragonfly` yourself. Do n
 
 ## Commits
 
-Match upstream df-mc commit messages. When committing or proposing a commit, always state the **scope** and the full **message**.
+Match upstream df-mc commit messages. Put the **scope** in the commit message; do not ask the user to confirm each scope.
+
+When the work is done, commit and push to `origin` (this fork). Do not wait to be asked. Do not ask whether to commit or push. If several packages changed as one task, pick one scope (or split into scoped commits) and push without prompting.
 
 Format: `scope: description`
 
