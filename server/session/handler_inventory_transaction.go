@@ -2,6 +2,8 @@ package session
 
 import (
 	"fmt"
+
+	"github.com/df-mc/dragonfly/server/block"
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/event"
 	"github.com/df-mc/dragonfly/server/item"
@@ -65,7 +67,7 @@ func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *wo
 		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
 			return
 		}
-		return h.handleUseItemTransaction(data, s, c)
+		return h.handleUseItemTransaction(data, s, tx, c)
 	case *protocol.ReleaseItemTransactionData:
 		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
 			return
@@ -175,7 +177,7 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 }
 
 // handleUseItemTransaction ...
-func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.UseItemTransactionData, s *Session, c Controllable) error {
+func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.UseItemTransactionData, s *Session, tx *world.Tx, c Controllable) error {
 	pos := cube.Pos{int(data.BlockPosition[0]), int(data.BlockPosition[1]), int(data.BlockPosition[2])}
 	if data.ClientPrediction == protocol.ClientPredictionSuccess || data.ActionType == protocol.UseItemActionBreakBlock {
 		// Suppress echoing the swing animation only when the client has already predicted it locally.
@@ -193,12 +195,12 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 	case protocol.UseItemActionBreakBlock:
 		c.BreakBlock(pos)
 	case protocol.UseItemActionClickBlock:
-		if fishingRodSimulationTick(data.TriggerType, c) {
+		if skipSimulationTick(data.TriggerType, c, tx, pos) {
 			return nil
 		}
 		c.UseItemOnBlock(pos, cube.Face(data.BlockFace), vec32To64(data.ClickedPosition))
 	case protocol.UseItemActionClickAir:
-		if fishingRodSimulationTick(data.TriggerType, c) {
+		if skipSimulationTick(data.TriggerType, c, nil, cube.Pos{}) {
 			return nil
 		}
 		c.UseItem()
@@ -208,13 +210,23 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 	return nil
 }
 
-func fishingRodSimulationTick(trigger uint32, c Controllable) bool {
+// skipSimulationTick drops Bedrock hold-repeats. A real tap is UNKNOWN; the
+// client re-fires CLICK_BLOCK every tick as SIMULATION_TICK while the button
+// is held. Fishing rods and iron doors must not act on those repeats.
+func skipSimulationTick(trigger uint32, c Controllable, tx *world.Tx, pos cube.Pos) bool {
 	if trigger != protocol.TriggerTypeSimulationTick {
 		return false
 	}
 	held, _ := c.HeldItems()
-	_, ok := held.Item().(item.FishingRod)
-	return ok
+	if _, ok := held.Item().(item.FishingRod); ok {
+		return true
+	}
+	if tx != nil {
+		if _, ok := tx.Block(pos).(block.IronDoor); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // handleReleaseItemTransaction ...
