@@ -1322,12 +1322,21 @@ func debugShapeToProtocol(shape debug.Shape, dim world.Dimension, attachedEntity
 	return ps
 }
 
-// gameTypeFromMode returns the game type ID from the game mode passed.
+// gameTypeFromMode returns the Bedrock game type ID from the game mode passed.
+// Upstream only distinguished creative vs survival, so adventure and spectator
+// were sent as survival and the client kept the survival HUD/collision.
 func gameTypeFromMode(mode world.GameMode) int32 {
-	if mode.AllowsFlying() && mode.CreativeInventory() {
+	id, _ := world.GameModeID(mode)
+	switch id {
+	case 1:
 		return packet.GameTypeCreative
+	case 2:
+		return packet.GameTypeAdventure
+	case 3:
+		return packet.GameTypeSpectator
+	default:
+		return packet.GameTypeSurvival
 	}
-	return packet.GameTypeSurvival
 }
 
 // The following functions use the go:linkname directive in order to make sure the item.byID and item.toID
