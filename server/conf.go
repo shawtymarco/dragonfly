@@ -135,6 +135,9 @@ type Config struct {
 	// DisableEnd, if true, does not create the end world. End portals stay in
 	// the current world.
 	DisableEnd bool
+	// DisableFireTick, if true, stops fire from ticking, spreading, or burning
+	// blocks. Existing fire stays until extinguished.
+	DisableFireTick bool
 	// OperatorsFile is the PMMP-style ops.txt path. Empty uses "ops.txt".
 	OperatorsFile string
 }
@@ -269,6 +272,8 @@ type UserConfig struct {
 		// DisableEnd skips creating the end dimension. Portals do not transfer
 		// players there.
 		DisableEnd bool
+		// DisableFireTick stops fire ticking, spreading, and burning blocks.
+		DisableFireTick bool
 	}
 	Players struct {
 		// MaxCount is the maximum amount of players allowed to join the server
@@ -318,6 +323,7 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		DisableResourceBuilding: !uc.Resources.AutoBuildPack,
 		DisableNether:           uc.World.DisableNether,
 		DisableEnd:              uc.World.DisableEnd,
+		DisableFireTick:         uc.World.DisableFireTick,
 		OperatorsFile:           uc.Server.OperatorsFile,
 	}
 	if !uc.Server.DisableJoinQuitMessages {

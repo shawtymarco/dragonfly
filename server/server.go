@@ -57,7 +57,7 @@ type Server struct {
 	pmu sync.RWMutex
 	// p holds a map of all players currently connected to the server. When they
 	// leave, they are removed from the map.
-	p map[uuid.UUID]*onlinePlayer
+	p   map[uuid.UUID]*onlinePlayer
 	ops *operators
 	// pwg is a sync.WaitGroup used to wait for all players to be disconnected
 	// before server shutdown, so that their data is saved properly.
@@ -554,6 +554,7 @@ func (srv *Server) defaultGameData() minecraft.GameData {
 		CustomBlocks: srv.customBlocks,
 		GameRules: []protocol.GameRule{
 			{Name: "naturalregeneration", Value: false},
+			{Name: "dofiretick", Value: !srv.conf.DisableFireTick},
 			{Name: "locatorBar", Value: false},
 		},
 
@@ -651,6 +652,7 @@ func (srv *Server) createWorld(dim world.Dimension, nether, end **world.World) *
 		ChunkLoadWorkers:    srv.conf.ChunkLoadWorkers,
 		Entities:            srv.conf.Entities,
 		Blocks:              srv.conf.Blocks,
+		DisableFireTick:     srv.conf.DisableFireTick,
 		PortalDestination: func(dim world.Dimension) *world.World {
 			switch dim {
 			case world.Nether:

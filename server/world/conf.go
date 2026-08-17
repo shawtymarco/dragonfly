@@ -88,6 +88,9 @@ type Config struct {
 	// AdvanceTick are not safe to call concurrently, including from delayed
 	// item or death callbacks.
 	Synchronous bool
+	// DisableFireTick, if true, stops fire from ticking, spreading, or burning
+	// blocks. Existing fire stays until extinguished. Matches doFireTick false.
+	DisableFireTick bool
 }
 
 // New creates a new World using the Config conf. The World returned will start

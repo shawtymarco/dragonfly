@@ -1153,6 +1153,12 @@ func (w *World) Handle(h Handler) {
 	w.handler.Store(&h)
 }
 
+// FireTicksDisabled reports whether fire ticking, spreading, and block burning
+// are disabled for this World.
+func (w *World) FireTicksDisabled() bool {
+	return w == nil || w.conf.DisableFireTick
+}
+
 // viewersOf returns all viewers viewing the position passed.
 func (w *World) viewersOf(pos mgl64.Vec3) []Viewer {
 	c, ok := w.chunks[chunkPosFromVec3(pos)]
