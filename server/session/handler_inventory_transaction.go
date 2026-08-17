@@ -193,13 +193,28 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 	case protocol.UseItemActionBreakBlock:
 		c.BreakBlock(pos)
 	case protocol.UseItemActionClickBlock:
+		if fishingRodSimulationTick(data.TriggerType, c) {
+			return nil
+		}
 		c.UseItemOnBlock(pos, cube.Face(data.BlockFace), vec32To64(data.ClickedPosition))
 	case protocol.UseItemActionClickAir:
+		if fishingRodSimulationTick(data.TriggerType, c) {
+			return nil
+		}
 		c.UseItem()
 	default:
 		return fmt.Errorf("unhandled UseItem ActionType %v", data.ActionType)
 	}
 	return nil
+}
+
+func fishingRodSimulationTick(trigger uint32, c Controllable) bool {
+	if trigger != protocol.TriggerTypeSimulationTick {
+		return false
+	}
+	held, _ := c.HeldItems()
+	_, ok := held.Item().(item.FishingRod)
+	return ok
 }
 
 // handleReleaseItemTransaction ...

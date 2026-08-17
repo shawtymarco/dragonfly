@@ -44,6 +44,12 @@ type (
 		Projectile, Owner world.Entity
 	}
 
+	// FishingHookDamageSource is used for the token damage a fishing hook
+	// deals when it attaches to a player. It is not reduced by armour.
+	FishingHookDamageSource struct {
+		Projectile, Owner world.Entity
+	}
+
 	// ExplosionDamageSource is used for damage caused by an explosion.
 	ExplosionDamageSource struct {
 		// Source is the source of the explosion that dealt the damage.
@@ -88,10 +94,14 @@ func (ProjectileDamageSource) Fire() bool                 { return false }
 func (ProjectileDamageSource) AffectedByEnchantment(e item.EnchantmentType) bool {
 	return e == enchantment.ProjectileProtection
 }
-func (ProjectileDamageSource) IgnoreTotem() bool        { return false }
-func (ExplosionDamageSource) ReducedByResistance() bool { return true }
-func (ExplosionDamageSource) ReducedByArmour() bool     { return true }
-func (ExplosionDamageSource) Fire() bool                { return false }
+func (ProjectileDamageSource) IgnoreTotem() bool          { return false }
+func (FishingHookDamageSource) ReducedByResistance() bool { return false }
+func (FishingHookDamageSource) ReducedByArmour() bool     { return false }
+func (FishingHookDamageSource) Fire() bool                { return false }
+func (FishingHookDamageSource) IgnoreTotem() bool         { return false }
+func (ExplosionDamageSource) ReducedByResistance() bool   { return true }
+func (ExplosionDamageSource) ReducedByArmour() bool       { return true }
+func (ExplosionDamageSource) Fire() bool                  { return false }
 func (ExplosionDamageSource) AffectedByEnchantment(e item.EnchantmentType) bool {
 	return e == enchantment.BlastProtection
 }

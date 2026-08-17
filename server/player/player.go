@@ -1783,12 +1783,14 @@ func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec
 	}
 	i, left := p.HeldItems()
 	b := p.tx.Block(pos)
-	if act, ok := b.(block.Activatable); ok {
+	_, fishingRod := i.Item().(item.FishingRod)
+	_, enderChest := b.(block.EnderChest)
+	if act, ok := b.(block.Activatable); ok && !(fishingRod && !enderChest) {
 		// If a player is sneaking, it will not activate the block clicked, unless it is not holding any
 		// items, in which case the block will be activated as usual.
 		if !p.Sneaking() || i.Empty() {
 			// The block was activated: Blocks such as doors must always have precedence over the item being
-			// used.
+			// used. Fishing rods skip this so a block click still casts, except on ender chests.
 			if useCtx := p.useContext(); act.Activate(pos, face, p.tx, p, useCtx) {
 				p.SwingArm()
 				p.SetHeldItems(p.subtractItem(p.damageItem(i, useCtx.Damage), useCtx.CountSub), left)
