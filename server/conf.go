@@ -129,6 +129,12 @@ type Config struct {
 	// For a non-default registry, set this to world.NewBlockRegistry(), register blocks on that instance, and ensure
 	// it is finalized before use.
 	Blocks world.BlockRegistry
+	// DisableNether, if true, does not create the nether world. Nether portals
+	// stay in the current world.
+	DisableNether bool
+	// DisableEnd, if true, does not create the end world. End portals stay in
+	// the current world.
+	DisableEnd bool
 }
 
 // New creates a Server using fields of conf. The Server's worlds are created
@@ -203,8 +209,16 @@ func (conf Config) New() *Server {
 	recipe_registerVanilla()
 
 	srv.world = srv.createWorld(world.Overworld, &srv.nether, &srv.end)
-	srv.nether = srv.createWorld(world.Nether, &srv.world, &srv.end)
-	srv.end = srv.createWorld(world.End, &srv.nether, &srv.world)
+	if !conf.DisableNether {
+		srv.nether = srv.createWorld(world.Nether, &srv.world, &srv.end)
+	} else {
+		srv.nether = nil
+	}
+	if !conf.DisableEnd {
+		srv.end = srv.createWorld(world.End, &srv.nether, &srv.world)
+	} else {
+		srv.end = nil
+	}
 
 	return srv
 }
@@ -241,6 +255,12 @@ type UserConfig struct {
 		SaveData bool
 		// Folder is the folder that the data of the world resides in.
 		Folder string
+		// DisableNether skips creating the nether dimension. Portals do not
+		// transfer players there.
+		DisableNether bool
+		// DisableEnd skips creating the end dimension. Portals do not transfer
+		// players there.
+		DisableEnd bool
 	}
 	Players struct {
 		// MaxCount is the maximum amount of players allowed to join the server
@@ -288,6 +308,8 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		MaxPlayers:              uc.Players.MaxCount,
 		MaxChunkRadius:          uc.Players.MaximumChunkRadius,
 		DisableResourceBuilding: !uc.Resources.AutoBuildPack,
+		DisableNether:           uc.World.DisableNether,
+		DisableEnd:              uc.World.DisableEnd,
 	}
 	if !uc.Server.DisableJoinQuitMessages {
 		conf.JoinMessage, conf.QuitMessage = chat.MessageJoin, chat.MessageQuit

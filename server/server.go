@@ -346,6 +346,9 @@ func (srv *Server) close() {
 
 	srv.conf.Log.Debug("Closing worlds...")
 	for _, w := range []*world.World{srv.end, srv.nether, srv.world} {
+		if w == nil {
+			continue
+		}
 		if err := w.Close(); err != nil {
 			srv.conf.Log.Error(fmt.Sprintf("Close dimension %v: ", w.Dimension()) + err.Error())
 		}
@@ -540,13 +543,16 @@ func (srv *Server) defaultGameData() minecraft.GameData {
 // dimension returns a world by a dimension passed.
 func (srv *Server) dimension(dimension world.Dimension) *world.World {
 	switch dimension {
-	default:
-		return srv.world
 	case world.Nether:
-		return srv.nether
+		if srv.nether != nil {
+			return srv.nether
+		}
 	case world.End:
-		return srv.end
+		if srv.end != nil {
+			return srv.end
+		}
 	}
+	return srv.world
 }
 
 // handleSessionClose handles the closing of a session. It removes the player
@@ -622,8 +628,14 @@ func (srv *Server) createWorld(dim world.Dimension, nether, end **world.World) *
 		PortalDestination: func(dim world.Dimension) *world.World {
 			switch dim {
 			case world.Nether:
+				if nether == nil || *nether == nil {
+					return nil
+				}
 				return *nether
 			case world.End:
+				if end == nil || *end == nil {
+					return nil
+				}
 				return *end
 			default:
 				return nil
