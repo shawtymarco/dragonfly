@@ -118,7 +118,7 @@ func (srv *Server) playerHandleFold(name string) (*world.EntityHandle, bool) {
 // BroadcastAdmin sends a grey italic admin copy of msg to every operator except
 // src, matching PMMP Command::broadcastCommandMessage(..., false). Used so
 // operators can see private tells.
-func (srv *Server) BroadcastAdmin(src cmd.Source, msg string) {
+func (srv *Server) BroadcastAdmin(src cmd.Source, tx *world.Tx, msg string) {
 	srcName := "unknown"
 	if n, ok := src.(cmd.NamedTarget); ok {
 		srcName = n.Name()
@@ -128,14 +128,23 @@ func (srv *Server) BroadcastAdmin(src cmd.Source, msg string) {
 	if p, ok := src.(*player.Player); ok {
 		srcUUID = p.UUID().String()
 	}
-	for p := range srv.Players(nil) {
+	send := func(p *player.Player) {
 		if !p.Operator() {
-			continue
+			return
 		}
 		if srcUUID != "" && p.UUID().String() == srcUUID {
-			continue
+			return
 		}
 		p.Message(line)
+	}
+	if tx != nil {
+		for p := range srv.Players(tx) {
+			send(p)
+		}
+	} else {
+		for p := range srv.Players(nil) {
+			send(p)
+		}
 	}
 	srv.conf.Log.Info("admin", "src", srcName, "msg", msg)
 }
