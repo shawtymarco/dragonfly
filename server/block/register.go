@@ -184,6 +184,7 @@ func init() {
 	registerAll(allCoralBlocks())
 	registerAll(allDeepslate())
 	registerAll(allDoors())
+	registerAll(allIronDoors())
 	registerAll(allDoubleFlowers())
 	registerAll(allDoubleTallGrass())
 	registerAll(allEndRods())
@@ -493,6 +494,7 @@ func init() {
 		world.RegisterItem(WoodFence{Wood: w})
 		world.RegisterItem(WoodTrapdoor{Wood: w})
 	}
+	world.RegisterItem(IronDoor{})
 	world.RegisterItem(Leaves{Type: AzaleaLeaves(), Persistent: true})
 	world.RegisterItem(Leaves{Type: FloweringAzaleaLeaves(), Persistent: true})
 	for _, ore := range OreTypes() {
