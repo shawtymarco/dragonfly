@@ -48,6 +48,8 @@ func (w *World) AdvanceTick() {
 func (t ticker) tick(tx *Tx) {
 	viewers, loaders := tx.World().allViewers()
 	w := tx.World()
+	w.loadedChunks.Store(int64(len(w.chunks)))
+	w.loadedEntities.Store(int64(len(w.entities)))
 
 	w.set.Lock()
 	if s := w.set.Spawn; s[1] > tx.Range()[1] && w.Dimension() == Overworld {

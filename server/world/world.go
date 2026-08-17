@@ -73,8 +73,10 @@ type World struct {
 	entities map[*EntityHandle]ChunkPos
 
 	// tickDurations holds the last 20 world-tick durations for TPS/load stats.
-	tickDurations [20]atomic.Int64
-	tickCount     atomic.Uint64
+	tickDurations  [20]atomic.Int64
+	tickCount      atomic.Uint64
+	loadedChunks   atomic.Int64
+	loadedEntities atomic.Int64
 
 	r *rand.Rand
 

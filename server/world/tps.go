@@ -77,22 +77,18 @@ func usageFromDuration(d time.Duration) float64 {
 	return float64(d) / float64(tickBudget) * 100
 }
 
-// LoadedChunkCount returns the number of currently loaded chunks.
+// LoadedChunkCount returns the number of loaded chunks as of the last world tick.
 func (w *World) LoadedChunkCount() int {
 	if w == nil {
 		return 0
 	}
-	var n int
-	<-w.exec(func(*Tx) { n = len(w.chunks) })
-	return n
+	return int(w.loadedChunks.Load())
 }
 
-// EntityCount returns the number of currently loaded entities.
+// EntityCount returns the number of loaded entities as of the last world tick.
 func (w *World) EntityCount() int {
 	if w == nil {
 		return 0
 	}
-	var n int
-	<-w.exec(func(*Tx) { n = len(w.entities) })
-	return n
+	return int(w.loadedEntities.Load())
 }
