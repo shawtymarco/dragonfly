@@ -355,6 +355,14 @@ func (tx *Tx) deferTask(f func(tx *Tx) error) *Task {
 	return task
 }
 
+// Save writes loaded chunks and level settings to the provider on this
+// transaction. World.Save queues a new transaction and deadlocks if called
+// from the owner.
+func (tx *Tx) Save() {
+	w := tx.World()
+	w.save(w.saveChunk)(tx)
+}
+
 // World returns the Tx's World. It panics once the callback has
 // completed. Treat the result as the off-owner handle: blocking calls like
 // Save and Close deadlock from inside the callback, so do world operations

@@ -1177,7 +1177,9 @@ func (w *World) PortalDestination(dim Dimension) *World {
 	return w
 }
 
-// Save saves the World to the provider.
+// Save saves the World to the provider. It queues a transaction and waits, so
+// it must not be called from the world owner (commands, handlers, Do
+// callbacks). Use Tx.Save from those.
 func (w *World) Save() {
 	<-w.exec(w.save(w.saveChunk))
 }
