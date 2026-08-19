@@ -138,6 +138,17 @@ type Config struct {
 	// DisableFireTick, if true, stops fire from ticking, spreading, or burning
 	// blocks. Existing fire stays until extinguished.
 	DisableFireTick bool
+	// DisableHopperTick, if true, stops hoppers from transferring or collecting
+	// items. Existing hoppers stay in the world.
+	DisableHopperTick bool
+	// DisableRedstoneTick, if true, discards pending redstone updates.
+	DisableRedstoneTick bool
+	// DisableVanillaRecipes, if true, skips registering the vanilla crafting,
+	// smithing, and brewing recipes.
+	DisableVanillaRecipes bool
+	// RandomTickFilter, if set, is passed to each default world and called
+	// before a block's RandomTick. Returning false skips that tick.
+	RandomTickFilter func(world.Block) bool
 	// OperatorsFile is the PMMP-style ops.txt path. Empty uses "ops.txt".
 	OperatorsFile string
 }
@@ -215,7 +226,9 @@ func (conf Config) New() *Server {
 	}
 
 	creative_registerCreativeItems()
-	recipe_registerVanilla()
+	if !conf.DisableVanillaRecipes {
+		recipe_registerVanilla()
+	}
 
 	srv.world = srv.createWorld(world.Overworld, &srv.nether, &srv.end)
 	if !conf.DisableNether {
@@ -274,6 +287,12 @@ type UserConfig struct {
 		DisableEnd bool
 		// DisableFireTick stops fire ticking, spreading, and burning blocks.
 		DisableFireTick bool
+		// DisableHopperTick stops hoppers transferring or collecting items.
+		DisableHopperTick bool
+		// DisableRedstoneTick discards pending redstone updates.
+		DisableRedstoneTick bool
+		// DisableVanillaRecipes skips registering vanilla crafting recipes.
+		DisableVanillaRecipes bool
 	}
 	Players struct {
 		// MaxCount is the maximum amount of players allowed to join the server
@@ -324,6 +343,9 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		DisableNether:           uc.World.DisableNether,
 		DisableEnd:              uc.World.DisableEnd,
 		DisableFireTick:         uc.World.DisableFireTick,
+		DisableHopperTick:       uc.World.DisableHopperTick,
+		DisableRedstoneTick:     uc.World.DisableRedstoneTick,
+		DisableVanillaRecipes:   uc.World.DisableVanillaRecipes,
 		OperatorsFile:           uc.Server.OperatorsFile,
 	}
 	if !uc.Server.DisableJoinQuitMessages {

@@ -1159,6 +1159,18 @@ func (w *World) FireTicksDisabled() bool {
 	return w == nil || w.conf.DisableFireTick
 }
 
+// HopperTicksDisabled reports whether hopper transfer and collect ticks are
+// disabled for this World.
+func (w *World) HopperTicksDisabled() bool {
+	return w == nil || w.conf.DisableHopperTick
+}
+
+// RedstoneTicksDisabled reports whether redstone updates are discarded for this
+// World.
+func (w *World) RedstoneTicksDisabled() bool {
+	return w == nil || w.conf.DisableRedstoneTick
+}
+
 // viewersOf returns all viewers viewing the position passed.
 func (w *World) viewersOf(pos mgl64.Vec3) []Viewer {
 	c, ok := w.chunks[chunkPosFromVec3(pos)]

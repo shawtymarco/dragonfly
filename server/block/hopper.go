@@ -133,6 +133,9 @@ func (h Hopper) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world
 
 // Tick ...
 func (h Hopper) Tick(_ int64, pos cube.Pos, tx *world.Tx) {
+	if tx.World().HopperTicksDisabled() {
+		return
+	}
 	cooldownChanged := h.TransferCooldown > 0 || h.CollectCooldown > 0
 	if h.TransferCooldown > 0 {
 		h.TransferCooldown--

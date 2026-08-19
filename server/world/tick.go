@@ -187,9 +187,15 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 	}
 
 	for _, pos := range randomBlocks {
-		if rb, ok := tx.Block(pos).(RandomTicker); ok {
-			rb.RandomTick(pos, tx, tx.World().r)
+		b := tx.Block(pos)
+		rb, ok := b.(RandomTicker)
+		if !ok {
+			continue
 		}
+		if f := tx.World().conf.RandomTickFilter; f != nil && !f(b) {
+			continue
+		}
+		rb.RandomTick(pos, tx, tx.World().r)
 	}
 	for _, pos := range blockEntities {
 		if tb, ok := tx.Block(pos).(TickerBlock); ok {

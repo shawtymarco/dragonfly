@@ -272,7 +272,14 @@ func (e *redstoneEngine) forget(pos cube.Pos) {
 
 // tick evaluates all dirty redstone positions for the current world tick.
 func (e *redstoneEngine) tick(tx *Tx, tick int64) {
-	if e == nil || len(e.dirty) == 0 {
+	if e == nil {
+		return
+	}
+	if tx.World().RedstoneTicksDisabled() {
+		clear(e.dirty)
+		return
+	}
+	if len(e.dirty) == 0 {
 		return
 	}
 	e.currentTick = tick

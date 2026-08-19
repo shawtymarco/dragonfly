@@ -91,6 +91,15 @@ type Config struct {
 	// DisableFireTick, if true, stops fire from ticking, spreading, or burning
 	// blocks. Existing fire stays until extinguished. Matches doFireTick false.
 	DisableFireTick bool
+	// DisableHopperTick, if true, stops hoppers from transferring or collecting
+	// items. Existing hoppers stay in the world.
+	DisableHopperTick bool
+	// DisableRedstoneTick, if true, discards pending redstone updates so wires,
+	// pistons, and other redstone components do not run.
+	DisableRedstoneTick bool
+	// RandomTickFilter, if set, is called before a block's RandomTick. Returning
+	// false skips that tick. Nil allows every random ticker.
+	RandomTickFilter func(Block) bool
 }
 
 // New creates a new World using the Config conf. The World returned will start
