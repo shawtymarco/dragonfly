@@ -551,20 +551,28 @@ func (s *Session) SendAbilities(c Controllable) {
 		cmdPerm = protocol.CommandPermissionLevelGameDirectors
 		abilities |= protocol.AbilityOperatorCommands | protocol.AbilityTeleport
 	}
+	layers := []protocol.AbilityLayer{{
+		Type:             protocol.AbilityLayerTypeBase,
+		Abilities:        protocol.AbilityCount - 1,
+		Values:           abilities,
+		FlySpeed:         float32(c.FlightSpeed()),
+		VerticalFlySpeed: float32(c.VerticalFlightSpeed()),
+		WalkSpeed:        protocol.AbilityBaseWalkSpeed,
+	}}
+	if !mode.HasCollision() {
+		// PocketMine faux spectator: without this layer the 1.19.80+ client starts
+		// falling when it clips into a block, and it reads flight from this layer.
+		layers = append(layers, protocol.AbilityLayer{
+			Type:      protocol.AbilityLayerTypeSpectator,
+			Abilities: protocol.AbilityFlying,
+			Values:    protocol.AbilityFlying,
+		})
+	}
 	s.writePacket(&packet.UpdateAbilities{AbilityData: protocol.AbilityData{
 		EntityUniqueID:     selfEntityRuntimeID,
 		PlayerPermissions:  playerPerm,
 		CommandPermissions: cmdPerm,
-		Layers: []protocol.AbilityLayer{
-			{
-				Type:             protocol.AbilityLayerTypeBase,
-				Abilities:        protocol.AbilityCount - 1,
-				Values:           abilities,
-				FlySpeed:         float32(c.FlightSpeed()),
-				VerticalFlySpeed: float32(c.VerticalFlightSpeed()),
-				WalkSpeed:        protocol.AbilityBaseWalkSpeed,
-			},
-		},
+		Layers:             layers,
 	}})
 }
 
@@ -1334,11 +1342,6 @@ func debugShapeToProtocol(shape debug.Shape, dim world.Dimension, attachedEntity
 func gameTypeFromMode(mode world.GameMode) int32 {
 	id, ok := world.GameModeID(mode)
 	if !ok {
-		// Unregistered overlay modes (replay faux spectator): keep the hotbar
-		// clickable like creative, with noclip/fly coming from abilities.
-		if mode.AllowsFlying() && mode.AllowsInteraction() && !mode.HasCollision() {
-			return packet.GameTypeCreative
-		}
 		return packet.GameTypeSurvival
 	}
 	switch id {
@@ -1347,6 +1350,10 @@ func gameTypeFromMode(mode world.GameMode) int32 {
 	case 2:
 		return packet.GameTypeAdventure
 	case 3:
+		// spec: PocketMine-style spectator uses the creative game type so the
+		// hotbar still sends item-use packets. Noclip/fly come from abilities.
+		return packet.GameTypeCreative
+	case 4:
 		return packet.GameTypeSpectator
 	default:
 		return packet.GameTypeSurvival
