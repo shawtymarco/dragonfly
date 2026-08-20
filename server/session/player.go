@@ -1332,7 +1332,15 @@ func debugShapeToProtocol(shape debug.Shape, dim world.Dimension, attachedEntity
 // Upstream only distinguished creative vs survival, so adventure and spectator
 // were sent as survival and the client kept the survival HUD/collision.
 func gameTypeFromMode(mode world.GameMode) int32 {
-	id, _ := world.GameModeID(mode)
+	id, ok := world.GameModeID(mode)
+	if !ok {
+		// Unregistered overlay modes (replay faux spectator): keep the hotbar
+		// clickable like creative, with noclip/fly coming from abilities.
+		if mode.AllowsFlying() && mode.AllowsInteraction() && !mode.HasCollision() {
+			return packet.GameTypeCreative
+		}
+		return packet.GameTypeSurvival
+	}
 	switch id {
 	case 1:
 		return packet.GameTypeCreative
