@@ -35,10 +35,13 @@ var (
 	// GameModeAdventure represents the adventure game mode: Players with this game mode cannot edit the world
 	// (placing or breaking blocks).
 	GameModeAdventure adventure
-	// GameModeSpectator represents the spectator game mode: Players with this game mode cannot interact with the
-	// world and cannot be seen by other players. spectator players can fly, like creative mode, and can
-	// move through blocks.
+	// GameModeSpectator is PocketMine-style spectator (`spec`): the client is
+	// told it is creative so the hotbar stays clickable, while the server
+	// strips collision, damage, editing and visibility.
 	GameModeSpectator spectator
+	// GameModeNativeSpectator is Bedrock native spectator (`nspec`): protocol
+	// GameTypeSpectator. The client will not send item-use packets.
+	GameModeNativeSpectator nativeSpectator
 )
 
 var gameModeReg = newGameModeRegistry(map[int]GameMode{
@@ -46,12 +49,14 @@ var gameModeReg = newGameModeRegistry(map[int]GameMode{
 	1: GameModeCreative,
 	2: GameModeAdventure,
 	3: GameModeSpectator,
+	4: GameModeNativeSpectator,
 })
 
 // GameModeByID looks up a GameMode for the ID passed, returning
-// GameModeSurvival for 0, GameModeCreative for 1, GameModeAdventure for 2 and
-// GameModeSpectator for 3. If the ID is unknown, the bool returned is false. In
-// this case the GameMode returned is GameModeSurvival.
+// GameModeSurvival for 0, GameModeCreative for 1, GameModeAdventure for 2,
+// GameModeSpectator for 3 and GameModeNativeSpectator for 4. If the ID is
+// unknown, the bool returned is false. In this case the GameMode returned is
+// GameModeSurvival.
 func GameModeByID(id int) (GameMode, bool) {
 	return gameModeReg.Lookup(id)
 }
@@ -77,9 +82,9 @@ func newGameModeRegistry(mode map[int]GameMode) *gameModeRegistry {
 }
 
 // Lookup looks up a GameMode for the ID passed, returning GameModeSurvival for
-// 0, GameModeCreative for 1, GameModeAdventure for 2 and GameModeSpectator for
-// 3. If the ID is unknown, the bool returned is false. In this case the
-// GameMode returned is GameModeSurvival.
+// 0, GameModeCreative for 1, GameModeAdventure for 2, GameModeSpectator for
+// 3 and GameModeNativeSpectator for 4. If the ID is unknown, the bool returned
+// is false. In this case the GameMode returned is GameModeSurvival.
 func (reg *gameModeRegistry) Lookup(id int) (GameMode, bool) {
 	mode, ok := reg.gameModes[id]
 	if !ok {
@@ -134,9 +139,8 @@ func (adventure) AllowsInteraction() bool   { return true }
 func (adventure) Visible() bool             { return true }
 func (adventure) InstantPortalTravel() bool { return false }
 
-// spectator represents the spectator game mode: Players with this game mode cannot interact with the
-// world and cannot be seen by other players. spectator players can fly, like creative mode, and can
-// move through blocks.
+// spectator is PocketMine-style spectator: fly and noclip, invisible, but the
+// client stays on the creative game type so hotbar clicks still arrive.
 type spectator struct{}
 
 func (spectator) AllowsEditing() bool       { return false }
@@ -144,6 +148,19 @@ func (spectator) AllowsTakingDamage() bool  { return false }
 func (spectator) CreativeInventory() bool   { return false }
 func (spectator) HasCollision() bool        { return false }
 func (spectator) AllowsFlying() bool        { return true }
-func (spectator) AllowsInteraction() bool   { return false }
+func (spectator) AllowsInteraction() bool   { return true }
 func (spectator) Visible() bool             { return false }
 func (spectator) InstantPortalTravel() bool { return false }
+
+// nativeSpectator is Bedrock native spectator. The client does not send item
+// use, so hotbar controls cannot work in this mode.
+type nativeSpectator struct{}
+
+func (nativeSpectator) AllowsEditing() bool       { return false }
+func (nativeSpectator) AllowsTakingDamage() bool  { return false }
+func (nativeSpectator) CreativeInventory() bool   { return false }
+func (nativeSpectator) HasCollision() bool        { return false }
+func (nativeSpectator) AllowsFlying() bool        { return true }
+func (nativeSpectator) AllowsInteraction() bool   { return false }
+func (nativeSpectator) Visible() bool             { return false }
+func (nativeSpectator) InstantPortalTravel() bool { return false }
