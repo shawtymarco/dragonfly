@@ -178,6 +178,16 @@ func allItemFrames() (frames []world.Block) {
 	for _, f := range cube.Faces() {
 		frames = append(frames, ItemFrame{Facing: f, Glowing: true})
 		frames = append(frames, ItemFrame{Facing: f, Glowing: false})
+		mapped := item.NewStack(frameMapItem{}, 1)
+		frames = append(frames, ItemFrame{Facing: f, Glowing: true, Item: mapped})
+		frames = append(frames, ItemFrame{Facing: f, Glowing: false, Item: mapped})
 	}
 	return
 }
+
+// frameMapItem exists only to register the item_frame_map_bit block state.
+// DecodeNBT replaces it with the actual persisted map stack.
+type frameMapItem struct{}
+
+func (frameMapItem) EncodeItem() (string, int16) { return "minecraft:filled_map", 0 }
+func (frameMapItem) MapID() int64                { return 0 }
