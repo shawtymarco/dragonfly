@@ -86,6 +86,10 @@ type playerData struct {
 
 	lastXPPickup *time.Time
 
+	pickupPriority int
+	pickupTick     int64
+	pickupCount    uint8
+
 	lastDamage  float64
 	immuneUntil time.Time
 
@@ -2450,6 +2454,12 @@ func (p *Player) Collect(s item.Stack) (int, bool) {
 	if p.Handler().HandleItemPickup(ctx, &s); ctx.Cancelled() {
 		return 0, false
 	}
+	if tick := p.tx.CurrentTick(); p.pickupTick != tick {
+		p.pickupTick, p.pickupCount = tick, 0
+	}
+	if p.pickupCount >= 16 {
+		return 0, false
+	}
 	var added int
 	if _, offHand := p.HeldItems(); !offHand.Empty() && offHand.Comparable(s) {
 		added, _ = p.offHand.AddItem(s)
@@ -2458,7 +2468,22 @@ func (p *Player) Collect(s item.Stack) (int, bool) {
 		n, _ := p.Inventory().AddItem(s.Grow(-added))
 		added += n
 	}
+	if added > 0 {
+		p.pickupCount++
+	}
 	return added, true
+}
+
+// PickupPriority returns the player's item pickup priority. Lower positive
+// values win; 0 is treated as unranked by item entities.
+func (p *Player) PickupPriority() int {
+	return p.pickupPriority
+}
+
+// SetPickupPriority sets the player's item pickup priority. It must be called
+// on the player's world owner.
+func (p *Player) SetPickupPriority(priority int) {
+	p.pickupPriority = priority
 }
 
 // Experience returns the amount of experience the player has.

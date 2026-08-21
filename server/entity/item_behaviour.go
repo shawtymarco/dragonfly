@@ -2,6 +2,7 @@ package entity
 
 import (
 	"math"
+	"sort"
 	"time"
 
 	"github.com/df-mc/dragonfly/server/block"
@@ -131,14 +132,13 @@ func (i *ItemBehaviour) checkNearby(e *Ent, tx *world.Tx) {
 	bbox := e.H().Type().BBox(e)
 	grown := bbox.GrowVec3(mgl64.Vec3{1, 0.5, 1}).Translate(pos)
 
+	collectors := make([]Collector, 0, 4)
 	for other := range tx.EntitiesWithin(bbox.Translate(pos).Grow(2)) {
 		if e.H() == other.H() || !other.H().Type().BBox(other).Translate(other.Position()).IntersectsWith(grown) {
 			continue
 		}
 		if collector, ok := other.(Collector); ok {
-			// A collector was within range to pick up the entity.
-			i.collect(e, collector, tx)
-			return
+			collectors = append(collectors, collector)
 		} else if other.H().Type() == ItemType {
 			// Another item entity was in range to merge with.
 			if i.merge(e, other.(*Ent), tx) {
@@ -146,6 +146,29 @@ func (i *ItemBehaviour) checkNearby(e *Ent, tx *world.Tx) {
 			}
 		}
 	}
+	if len(collectors) == 0 {
+		return
+	}
+	sort.SliceStable(collectors, func(a, b int) bool {
+		return pickupPriority(collectors[a]) < pickupPriority(collectors[b])
+	})
+	for _, collector := range collectors {
+		// Try the next collector if the preferred one cannot fit the item.
+		if i.collect(e, collector, tx) {
+			return
+		}
+	}
+}
+
+type pickupPrioritiser interface {
+	PickupPriority() int
+}
+
+func pickupPriority(collector Collector) int {
+	if p, ok := collector.(pickupPrioritiser); ok && p.PickupPriority() > 0 {
+		return p.PickupPriority()
+	}
+	return math.MaxInt
 }
 
 // merge merges the item entity with another item entity.
@@ -169,11 +192,11 @@ func (i *ItemBehaviour) merge(e *Ent, other *Ent, tx *world.Tx) bool {
 }
 
 // collect makes a collector collect the item (or at least part of it).
-func (i *ItemBehaviour) collect(e *Ent, collector Collector, tx *world.Tx) {
+func (i *ItemBehaviour) collect(e *Ent, collector Collector, tx *world.Tx) bool {
 	pos := e.Position()
 	n, _ := collector.Collect(i.i)
 	if n == 0 {
-		return
+		return false
 	}
 	for _, viewer := range tx.Viewers(pos) {
 		viewer.ViewEntityAction(e, PickedUpAction{Collector: collector})
@@ -182,12 +205,13 @@ func (i *ItemBehaviour) collect(e *Ent, collector Collector, tx *world.Tx) {
 	if n == i.i.Count() {
 		// The collector picked up the entire stack.
 		_ = e.Close()
-		return
+		return true
 	}
 	// Create a new item entity and shrink it by the amount of items that the
 	// collector collected.
 	tx.AddEntity(NewItem(world.EntitySpawnOpts{Position: pos}, i.i.Grow(-n)))
 	_ = e.Close()
+	return true
 }
 
 // Collector represents an entity in the world that is able to collect an item, typically an entity such as
