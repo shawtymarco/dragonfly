@@ -109,6 +109,9 @@ func (s *Session) OpenInventory(inv *inventory.Inventory, pos cube.Pos, tx *worl
 	s.sendInv(inv, uint32(nextID))
 }
 
+// CloseInventory closes the currently opened container from the server side.
+func (s *Session) CloseInventory(tx *world.Tx) { s.closeCurrentContainer(tx, false) }
+
 // SendRespawn spawns the Controllable entity of the session client-side in the world, provided it has died.
 func (s *Session) SendRespawn(pos mgl64.Vec3, c Controllable) {
 	s.writePacket(&packet.Respawn{

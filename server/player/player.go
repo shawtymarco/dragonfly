@@ -2650,6 +2650,14 @@ func (p *Player) OpenInventory(inv *inventory.Inventory, tx *world.Tx) {
 	}
 }
 
+// CloseInventory closes the currently opened container from the server side.
+func (p *Player) CloseInventory(tx *world.Tx) {
+	if p.session() != session.Nop {
+		p.session().CloseInventory(tx)
+		p.ContainerClosed()
+	}
+}
+
 // ContainerClosed forwards a container-close notification to the player handler.
 func (p *Player) ContainerClosed() { p.Handler().HandleContainerClose(p) }
 

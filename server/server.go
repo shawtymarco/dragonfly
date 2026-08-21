@@ -217,6 +217,18 @@ func (srv *Server) PlayerCount() int {
 	return len(srv.p)
 }
 
+// LoadPlayerData loads persisted data for an offline player UUID. Call it off
+// world owners because providers may perform disk IO.
+func (srv *Server) LoadPlayerData(id uuid.UUID) (player.Config, *world.World, error) {
+	return srv.conf.PlayerProvider.Load(id, srv.dimension)
+}
+
+// SavePlayerData persists data for an offline player UUID. Call it off world
+// owners because providers may perform disk IO.
+func (srv *Server) SavePlayerData(id uuid.UUID, data player.Config, w *world.World) error {
+	return srv.conf.PlayerProvider.Save(id, data, w)
+}
+
 // Players returns an iterator that yields players currently online. If Players
 // is called from within a transaction, the respective transaction should be
 // passed. Passing nil from a world owner (commands, handlers, Do callbacks)
