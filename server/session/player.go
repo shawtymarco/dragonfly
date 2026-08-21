@@ -69,14 +69,20 @@ func (s *Session) StartShowingEntity(e world.Entity) {
 // closeCurrentContainer closes the container the player might currently have open.
 func (s *Session) closeCurrentContainer(tx *world.Tx, clientRequested bool) {
 	virtual := s.openedVirtual.Load()
+	pos := *s.openedPos.Load()
+	pair := s.openedVirtualPair.Load()
 	if !s.closeWindow(clientRequested) {
 		return
 	}
 	if virtual {
+		s.ViewBlockUpdate(pos, tx.Block(pos), 0)
+		if pair != nil {
+			s.ViewBlockUpdate(*pair, tx.Block(*pair), 0)
+		}
+		s.openedVirtualPair.Store(nil)
 		return
 	}
 
-	pos := *s.openedPos.Load()
 	b := tx.Block(pos)
 	if container, ok := b.(block.Container); ok {
 		container.RemoveViewer(s, tx, pos)
@@ -86,7 +92,7 @@ func (s *Session) closeCurrentContainer(tx *world.Tx, clientRequested bool) {
 }
 
 // OpenInventory opens an arbitrary inventory using a generic container window.
-func (s *Session) OpenInventory(inv *inventory.Inventory, pos cube.Pos, tx *world.Tx) {
+func (s *Session) OpenInventory(inv *inventory.Inventory, title string, pos cube.Pos, tx *world.Tx) {
 	if inv == nil {
 		return
 	}
@@ -97,6 +103,20 @@ func (s *Session) OpenInventory(inv *inventory.Inventory, pos cube.Pos, tx *worl
 	s.openedWindow.Store(inv)
 	s.openedPos.Store(&pos)
 	s.openedContainerID.Store(uint32(protocol.ContainerTypeContainer))
+	chest := block.NewChest()
+	s.ViewBlockUpdate(pos, chest, 0)
+	nbtData := map[string]any{"id": "Chest", "x": int32(pos.X()), "y": int32(pos.Y()), "z": int32(pos.Z()), "CustomName": title}
+	if inv.Size() > 27 {
+		pair := pos.Side(cube.FaceEast)
+		s.openedVirtualPair.Store(&pair)
+		s.ViewBlockUpdate(pair, chest, 0)
+		nbtData["pairx"], nbtData["pairz"], nbtData["pairlead"] = int32(pair.X()), int32(pair.Z()), uint8(1)
+		s.writePacket(&packet.BlockActorData{Position: protocol.BlockPos{int32(pair.X()), int32(pair.Y()), int32(pair.Z())}, NBTData: map[string]any{
+			"id": "Chest", "x": int32(pair.X()), "y": int32(pair.Y()), "z": int32(pair.Z()), "CustomName": title,
+			"pairx": int32(pos.X()), "pairz": int32(pos.Z()), "pairlead": uint8(0),
+		}})
+	}
+	s.writePacket(&packet.BlockActorData{Position: protocol.BlockPos{int32(pos.X()), int32(pos.Y()), int32(pos.Z())}, NBTData: nbtData})
 	inv.SlotFunc(func(slot int, _ item.Stack, after item.Stack) {
 		s.ViewSlotChange(slot, after)
 	})
