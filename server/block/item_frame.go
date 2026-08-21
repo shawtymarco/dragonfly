@@ -33,12 +33,14 @@ type ItemFrame struct {
 // Activate ...
 func (i ItemFrame) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User, ctx *item.UseContext) bool {
 	if !i.Item.Empty() {
-		// TODO: Item frames with maps can only be rotated four times.
-		i.Rotations = (i.Rotations + 1) % 8
+		rotations := 8
+		if isMapItem(i.Item) {
+			rotations = 4
+		}
+		i.Rotations = (i.Rotations + 1) % rotations
 		tx.PlaySound(pos.Vec3Centre(), sound.ItemFrameRotate{})
 	} else if held, _ := u.HeldItems(); !held.Empty() {
 		i.Item = held.Grow(-held.Count() + 1)
-		// TODO: When maps are implemented, check the item is a map, and if so, display the large version of the frame.
 		ctx.SubtractFromCount(1)
 		tx.PlaySound(pos.Vec3Centre(), sound.ItemAdd{})
 	} else {
@@ -107,11 +109,23 @@ func (i ItemFrame) EncodeBlock() (name string, properties map[string]any) {
 	if i.Glowing {
 		name = "minecraft:glow_frame"
 	}
+	mapBit := uint8(0)
+	if isMapItem(i.Item) {
+		mapBit = 1
+	}
 	return name, map[string]any{
 		"facing_direction":     int32(i.Facing.Opposite()),
-		"item_frame_map_bit":   uint8(0), // TODO: When maps are added, set this to true if the item is a map.
+		"item_frame_map_bit":   mapBit,
 		"item_frame_photo_bit": uint8(0), // Only implemented in Education Edition.
 	}
+}
+
+func isMapItem(stack item.Stack) bool {
+	if stack.Empty() {
+		return false
+	}
+	_, ok := stack.Item().(interface{ MapID() int64 })
+	return ok
 }
 
 // DecodeNBT ...
