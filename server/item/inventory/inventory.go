@@ -20,8 +20,10 @@ type Inventory struct {
 	h     Handler
 	slots []item.Stack
 
-	f         SlotFunc
-	validator SlotValidatorFunc
+	f            SlotFunc
+	listeners    map[uint64]SlotFunc
+	nextListener uint64
+	validator    SlotValidatorFunc
 }
 
 // SlotFunc is a function called for each item changed in an Inventory.
@@ -61,7 +63,36 @@ func (inv *Inventory) Clone(f SlotFunc) *Inventory {
 func (inv *Inventory) SlotFunc(f SlotFunc) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()
+	if f == nil {
+		f = func(int, item.Stack, item.Stack) {}
+	}
 	inv.f = f
+}
+
+// AddSlotListener adds an independent slot-change listener and returns its ID.
+// Unlike SlotFunc, listeners do not replace the inventory's primary callback.
+func (inv *Inventory) AddSlotListener(f SlotFunc) uint64 {
+	if f == nil {
+		return 0
+	}
+	inv.mu.Lock()
+	defer inv.mu.Unlock()
+	if inv.listeners == nil {
+		inv.listeners = make(map[uint64]SlotFunc)
+	}
+	inv.nextListener++
+	inv.listeners[inv.nextListener] = f
+	return inv.nextListener
+}
+
+// RemoveSlotListener removes a listener previously added with AddSlotListener.
+func (inv *Inventory) RemoveSlotListener(id uint64) {
+	if id == 0 {
+		return
+	}
+	inv.mu.Lock()
+	delete(inv.listeners, id)
+	inv.mu.Unlock()
 }
 
 // SlotValidatorFunc changes the function that limits item placement in the inventory slot.
@@ -376,8 +407,15 @@ func (inv *Inventory) setItem(slot int, it item.Stack) func() {
 	}
 	before := inv.slots[slot]
 	inv.slots[slot] = it
+	listeners := make([]SlotFunc, 0, len(inv.listeners))
+	for _, listener := range inv.listeners {
+		listeners = append(listeners, listener)
+	}
 	return func() {
 		inv.f(slot, before, it)
+		for _, listener := range listeners {
+			listener(slot, before, it)
+		}
 	}
 }
 
@@ -403,6 +441,7 @@ func (inv *Inventory) Close() error {
 
 	inv.check()
 	inv.f = func(int, item.Stack, item.Stack) {}
+	clear(inv.listeners)
 	return nil
 }
 
