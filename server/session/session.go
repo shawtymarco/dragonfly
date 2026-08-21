@@ -73,6 +73,7 @@ type Session struct {
 	breakingPos cube.Pos
 
 	inTransaction, containerOpened atomic.Bool
+	openedVirtual                  atomic.Bool
 	openedWindowID                 atomic.Uint32
 	openedContainerID              atomic.Uint32
 	openedWindow                   atomic.Pointer[inventory.Inventory]
@@ -591,6 +592,7 @@ func (s *Session) registerHandlers() {
 		packet.IDClientCacheBlobStatus:     &ClientCacheBlobStatusHandler{},
 		packet.IDCommandRequest:            &CommandRequestHandler{},
 		packet.IDContainerClose:            &ContainerCloseHandler{},
+		packet.IDMapInfoRequest:            &MapInfoRequestHandler{},
 		packet.IDEmote:                     &EmoteHandler{},
 		packet.IDEmoteList:                 nil,
 		packet.IDFilterText:                nil,

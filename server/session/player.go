@@ -12,6 +12,7 @@ import (
 	_ "unsafe" // Imported for compiler directives.
 
 	"github.com/df-mc/dragonfly/server/block"
+	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/entity"
 	"github.com/df-mc/dragonfly/server/entity/effect"
 	"github.com/df-mc/dragonfly/server/item"
@@ -67,7 +68,11 @@ func (s *Session) StartShowingEntity(e world.Entity) {
 
 // closeCurrentContainer closes the container the player might currently have open.
 func (s *Session) closeCurrentContainer(tx *world.Tx, clientRequested bool) {
+	virtual := s.openedVirtual.Load()
 	if !s.closeWindow(clientRequested) {
+		return
+	}
+	if virtual {
 		return
 	}
 
@@ -78,6 +83,30 @@ func (s *Session) closeCurrentContainer(tx *world.Tx, clientRequested bool) {
 	} else if enderChest, ok := b.(block.EnderChest); ok {
 		enderChest.RemoveViewer(tx, pos)
 	}
+}
+
+// OpenInventory opens an arbitrary inventory using a generic container window.
+func (s *Session) OpenInventory(inv *inventory.Inventory, pos cube.Pos, tx *world.Tx) {
+	if inv == nil {
+		return
+	}
+	s.closeCurrentContainer(tx, false)
+	nextID := s.nextWindowID()
+	s.containerOpened.Store(true)
+	s.openedVirtual.Store(true)
+	s.openedWindow.Store(inv)
+	s.openedPos.Store(&pos)
+	s.openedContainerID.Store(uint32(protocol.ContainerTypeContainer))
+	inv.SlotFunc(func(slot int, _ item.Stack, after item.Stack) {
+		s.ViewSlotChange(slot, after)
+	})
+	s.writePacket(&packet.ContainerOpen{
+		WindowID:                nextID,
+		ContainerType:           protocol.ContainerTypeContainer,
+		ContainerPosition:       protocol.BlockPos{int32(pos[0]), int32(pos[1]), int32(pos[2])},
+		ContainerEntityUniqueID: -1,
+	})
+	s.sendInv(inv, uint32(nextID))
 }
 
 // SendRespawn spawns the Controllable entity of the session client-side in the world, provided it has died.

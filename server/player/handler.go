@@ -138,6 +138,10 @@ type Handler interface {
 	HandleItemPickup(ctx *Context, i *item.Stack)
 	// HandleHeldSlotChange handles the player changing the slot they are currently holding.
 	HandleHeldSlotChange(ctx *Context, from, to int)
+	// HandleContainerClose handles the player closing an opened block or virtual container.
+	HandleContainerClose(p *Player)
+	// HandleMapInfoRequest handles a client request for the pixels of a map ID.
+	HandleMapInfoRequest(p *Player, mapID int64)
 	// HandleItemDrop handles the player dropping an item on the ground.
 	// ctx.Cancel() may be called to prevent the player from dropping the item.Stack passed on the ground.
 	HandleItemDrop(ctx *Context, s item.Stack)
@@ -166,6 +170,8 @@ var _ Handler = NopHandler{}
 
 func (NopHandler) HandleItemDrop(*Context, item.Stack)                                     {}
 func (NopHandler) HandleHeldSlotChange(*Context, int, int)                                 {}
+func (NopHandler) HandleContainerClose(*Player)                                            {}
+func (NopHandler) HandleMapInfoRequest(*Player, int64)                                     {}
 func (NopHandler) HandleMove(*Context, mgl64.Vec3, cube.Rotation)                          {}
 func (NopHandler) HandleJump(*Player)                                                      {}
 func (NopHandler) HandleTeleport(*Context, mgl64.Vec3)                                     {}

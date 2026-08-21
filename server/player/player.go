@@ -3,6 +3,7 @@ package player
 import (
 	"errors"
 	"fmt"
+	"image/color"
 	"math"
 	"math/rand/v2"
 	"net"
@@ -2639,6 +2640,26 @@ func (p *Player) Drop(s item.Stack) int {
 func (p *Player) OpenBlockContainer(pos cube.Pos, tx *world.Tx) {
 	if p.session() != session.Nop {
 		p.session().OpenBlockContainer(pos, tx)
+	}
+}
+
+// OpenInventory opens an arbitrary server-side inventory as a container.
+func (p *Player) OpenInventory(inv *inventory.Inventory, tx *world.Tx) {
+	if p.session() != session.Nop {
+		p.session().OpenInventory(inv, cube.PosFromVec3(p.Position()), tx)
+	}
+}
+
+// ContainerClosed forwards a container-close notification to the player handler.
+func (p *Player) ContainerClosed() { p.Handler().HandleContainerClose(p) }
+
+// RequestMapInfo forwards a map texture request to the player handler.
+func (p *Player) RequestMapInfo(mapID int64) { p.Handler().HandleMapInfoRequest(p, mapID) }
+
+// SendMapImage sends a complete map texture to the player.
+func (p *Player) SendMapImage(mapID int64, pixels []color.RGBA) {
+	if p.session() != session.Nop {
+		p.session().SendMapImage(mapID, pixels)
 	}
 }
 

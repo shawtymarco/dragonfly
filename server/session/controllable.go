@@ -113,6 +113,8 @@ type Controllable interface {
 
 	EnderChestInventory() *inventory.Inventory
 	MoveItemsToInventory()
+	ContainerClosed()
+	RequestMapInfo(mapID int64)
 
 	// UUID returns the UUID of the controllable. It must be unique for all controllable entities present in
 	// the server.

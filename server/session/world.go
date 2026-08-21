@@ -1403,6 +1403,9 @@ func (s *Session) closeWindow(clientRequested bool) bool {
 	}
 	containerType := byte(s.openedContainerID.Load())
 	windowID := byte(s.openedWindowID.Load())
+	if s.openedVirtual.Swap(false) {
+		s.openedWindow.Load().SlotFunc(nil)
+	}
 
 	s.openedContainerID.Store(0)
 	s.openedWindow.Store(inventory.New(1, nil))
@@ -1414,6 +1417,26 @@ func (s *Session) closeWindow(clientRequested bool) bool {
 		})
 	}
 	return true
+}
+
+// SendMapImage sends a complete locked 128x128 map texture to the client.
+func (s *Session) SendMapImage(mapID int64, pixels []color.RGBA) {
+	if len(pixels) != 128*128 {
+		return
+	}
+	s.writePacket(&packet.ClientBoundMapItemData{
+		MapID:          mapID,
+		Dimension:      packet.DimensionOverworld,
+		LockedMap:      true,
+		Origin:         protocol.BlockPos{},
+		Scale:          protocol.Option(byte(1)),
+		MapsIncludedIn: protocol.Option([]int64{mapID}),
+		Height:         protocol.Option(int32(128)),
+		Width:          protocol.Option(int32(128)),
+		XOffset:        protocol.Option(int32(0)),
+		YOffset:        protocol.Option(int32(0)),
+		Pixels:         protocol.Option(pixels),
+	})
 }
 
 // entityRuntimeID returns the runtime ID of the entity passed.

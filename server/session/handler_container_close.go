@@ -22,6 +22,7 @@ func (h *ContainerCloseHandler) Handle(p packet.Packet, s *Session, tx *world.Tx
 	case byte(s.openedWindowID.Load()):
 		containerType = byte(s.openedContainerID.Load())
 		s.closeCurrentContainer(tx, true)
+		c.ContainerClosed()
 	case 0xff:
 		// Sent when an inventory/container is opened at the same time as chat.
 		s.invOpened = false
