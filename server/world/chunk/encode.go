@@ -95,6 +95,11 @@ func EncodeBiomes(c *Chunk, e Encoding) []byte {
 // encodePalettedStorage encodes a PalettedStorage into a bytes.Buffer. The Encoding passed is used to write the Palette
 // of the PalettedStorage.
 func encodePalettedStorage(buf *bytes.Buffer, storage, previous *PalettedStorage, e Encoding, pe paletteEncoding) {
+	if mapper, ok := e.(interface {
+		mapStorage(*PalettedStorage, paletteEncoding) *PalettedStorage
+	}); ok {
+		storage = mapper.mapStorage(storage, pe)
+	}
 	if storage.Equal(previous) {
 		_, _ = buf.Write([]byte{0x7f<<1 | e.network()})
 		return

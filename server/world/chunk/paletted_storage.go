@@ -240,3 +240,40 @@ func (storage *PalettedStorage) compact() {
 	}
 	*storage = *newStorage
 }
+
+// remapPalettedStorage creates a network-only copy with mapped and deduplicated
+// palette entries. The live world storage is never modified.
+func remapPalettedStorage(storage *PalettedStorage, mapper BlockRuntimeIDMapper) *PalettedStorage {
+	if storage == nil || mapper == nil {
+		return storage
+	}
+	values := make([]uint32, 0, storage.palette.Len())
+	indicesByValue := make(map[uint32]uint16, storage.palette.Len())
+	conversion := make([]uint16, storage.palette.Len())
+	for index, value := range storage.palette.values {
+		mapped, ok := mapper.MapBlockRuntimeID(value)
+		if !ok {
+			mapped = 0
+		}
+		mappedIndex, exists := indicesByValue[mapped]
+		if !exists {
+			mappedIndex = uint16(len(values))
+			indicesByValue[mapped] = mappedIndex
+			values = append(values, mapped)
+		}
+		conversion[index] = mappedIndex
+	}
+	size := paletteSizeFor(len(values))
+	mappedStorage := newPalettedStorage(make([]uint32, size.uint32s()), newPalette(size, values))
+	if size == 0 {
+		return mappedStorage
+	}
+	for x := byte(0); x < 16; x++ {
+		for y := byte(0); y < 16; y++ {
+			for z := byte(0); z < 16; z++ {
+				mappedStorage.setPaletteIndex(x, y, z, conversion[storage.paletteIndex(x, y, z)])
+			}
+		}
+	}
+	return mappedStorage
+}

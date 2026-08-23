@@ -36,6 +36,21 @@ var (
 	BiomePaletteEncoding biomePaletteEncoding
 )
 
+// BlockRuntimeIDMapper maps live native block runtime IDs to a connection's
+// network registry. Implementations must be safe for concurrent use.
+type BlockRuntimeIDMapper interface {
+	MapBlockRuntimeID(runtimeID uint32) (mapped uint32, ok bool)
+}
+
+// NetworkEncodingWithBlockMapper returns a network encoding that maps block
+// palettes before packing them. Biome palettes remain unchanged.
+func NetworkEncodingWithBlockMapper(mapper BlockRuntimeIDMapper) Encoding {
+	if mapper == nil {
+		return NetworkEncoding
+	}
+	return mappedNetworkEncoding{mapper: mapper}
+}
+
 // biomePaletteEncoding implements the encoding of biome palettes to disk.
 type biomePaletteEncoding struct{}
 
@@ -181,4 +196,23 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 		blocks[i] = uint32(temp)
 	}
 	return &Palette{values: blocks, size: blockSize}, nil
+}
+
+type mappedNetworkEncoding struct {
+	mapper BlockRuntimeIDMapper
+}
+
+func (mappedNetworkEncoding) network() byte { return 1 }
+func (mappedNetworkEncoding) encodePalette(buf *bytes.Buffer, palette *Palette, encoding paletteEncoding) {
+	NetworkEncoding.encodePalette(buf, palette, encoding)
+}
+func (mappedNetworkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, encoding paletteEncoding) (*Palette, error) {
+	return NetworkEncoding.decodePalette(buf, blockSize, encoding)
+}
+
+func (encoding mappedNetworkEncoding) mapStorage(storage *PalettedStorage, paletteEncoding paletteEncoding) *PalettedStorage {
+	if _, blockPalette := paletteEncoding.(BlockPaletteEncoding); !blockPalette {
+		return storage
+	}
+	return remapPalettedStorage(storage, encoding.mapper)
 }
