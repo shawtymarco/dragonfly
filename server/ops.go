@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -14,30 +15,49 @@ import (
 
 // operators is a PMMP-style ops.txt list of operator names.
 type operators struct {
-	path string
-	mu   sync.RWMutex
+	path  string
+	mu    sync.RWMutex
 	names map[string]struct{}
 }
 
 func loadOperators(path string) *operators {
 	o := &operators{path: path, names: make(map[string]struct{})}
+	if err := o.reload(); err != nil && errors.Is(err, os.ErrNotExist) {
+		_ = os.WriteFile(path, []byte{}, 0644)
+	}
+	return o
+}
+
+func (o *operators) reload() error {
+	names, err := readOperatorNames(o.path)
+	if err != nil {
+		return err
+	}
+	o.mu.Lock()
+	o.names = names
+	o.mu.Unlock()
+	return nil
+}
+
+func readOperatorNames(path string) (map[string]struct{}, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			_ = os.WriteFile(path, []byte{}, 0644)
-		}
-		return o
+		return nil, err
 	}
 	defer f.Close()
+	names := make(map[string]struct{})
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		name := strings.TrimSpace(sc.Text())
 		if name == "" || strings.HasPrefix(name, "#") {
 			continue
 		}
-		o.names[strings.ToLower(name)] = struct{}{}
+		names[strings.ToLower(name)] = struct{}{}
 	}
-	return o
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	return names, nil
 }
 
 func (o *operators) has(name string) bool {
@@ -93,6 +113,21 @@ func (srv *Server) RemoveOp(name string) error {
 		return err
 	}
 	srv.applyOperator(name, false)
+	return nil
+}
+
+// ReloadOperators reloads ops.txt and reapplies operator abilities to online
+// players.
+func (srv *Server) ReloadOperators() error {
+	if srv.ops == nil {
+		return errors.New("operators are not configured")
+	}
+	if err := srv.ops.reload(); err != nil {
+		return err
+	}
+	for _, name := range srv.PlayerNames() {
+		srv.applyOperator(name, srv.IsOp(name))
+	}
 	return nil
 }
 
