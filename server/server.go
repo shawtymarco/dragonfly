@@ -736,6 +736,14 @@ func vec64To32(vec3 mgl64.Vec3) mgl32.Vec3 {
 // itemEntries loads a list of all custom item entries of the server, ready to
 // be sent in the StartGame packet.
 func (srv *Server) itemEntries() []protocol.ItemEntry {
+	entries := VanillaItemEntries()
+	entries = append(entries, srv.customItems...)
+	return entries
+}
+
+// VanillaItemEntries returns a deep copy of the current native item registry
+// in the form used by GameData and ItemRegistry packets.
+func VanillaItemEntries() []protocol.ItemEntry {
 	entries := make([]protocol.ItemEntry, 0, len(vanillaItems))
 
 	for name, e := range vanillaItems {
@@ -747,7 +755,6 @@ func (srv *Server) itemEntries() []protocol.ItemEntry {
 			Data:           e.Data,
 		})
 	}
-	entries = append(entries, srv.customItems...)
 	return entries
 }
 

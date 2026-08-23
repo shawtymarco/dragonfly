@@ -21,6 +21,7 @@ import (
 	"github.com/df-mc/dragonfly/server/player/hud"
 	"github.com/df-mc/dragonfly/server/player/skin"
 	"github.com/df-mc/dragonfly/server/world"
+	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft"
@@ -109,6 +110,8 @@ type Session struct {
 	closeBackground chan struct{}
 
 	br world.BlockRegistry
+
+	chunkEncoding chunk.Encoding
 }
 
 // debugShapeUpdate represents a pending debug shape mutation. If shape is nil, the update removes the
@@ -186,6 +189,13 @@ func (conf Config) New(conn Conn) *Session {
 	}
 	conf.Log = conf.Log.With("name", conn.IdentityData().DisplayName, "uuid", conn.IdentityData().Identity, "raddr", conn.RemoteAddr().String())
 
+	networkEncoding := chunk.Encoding(chunk.NetworkEncoding)
+	if provider, ok := conn.(interface{ Proto() minecraft.Protocol }); ok {
+		if mapper, ok := provider.Proto().(chunk.BlockRuntimeIDMapper); ok {
+			networkEncoding = chunk.NetworkEncodingWithBlockMapper(mapper)
+		}
+	}
+
 	s := &Session{}
 	*s = Session{
 		openChunkTransactions:  make([]map[uint64]struct{}, 0, 8),
@@ -208,6 +218,7 @@ func (conf Config) New(conn Conn) *Session {
 		hiddenHud:              make(map[hud.Element]struct{}),
 		debugShapes:            make(map[int]debug.Shape),
 		debugShapeUpdates:      make([]debugShapeUpdate, 0, 256),
+		chunkEncoding:          networkEncoding,
 	}
 	s.viewLayer = world.NewViewLayer(s)
 	s.openedWindow.Store(inventory.New(1, nil))

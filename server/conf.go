@@ -85,6 +85,10 @@ type Config struct {
 	// AcceptedProtocols contains additional Minecraft protocol versions accepted
 	// by the default listener. The current native protocol is always accepted.
 	AcceptedProtocols []minecraft.Protocol
+	// AcceptedProtocolsProvider may construct additional protocols after Blocks
+	// has been finalised. This is intended for adapters that need an immutable
+	// snapshot of the live block registry before the listener is created.
+	AcceptedProtocolsProvider func(blocks world.BlockRegistry) ([]minecraft.Protocol, error)
 	// PlayerProvider is the player.Provider used for storing and loading player
 	// data. If left as nil, player data will be newly created every time a
 	// player joins the server and no data will be stored.
@@ -201,6 +205,13 @@ func (conf Config) New() *Server {
 	// is used in some vanilla paths.
 	conf.Blocks.Finalize()
 	world.DefaultBlockRegistry.Finalize()
+	if conf.AcceptedProtocolsProvider != nil {
+		protocols, err := conf.AcceptedProtocolsProvider(conf.Blocks)
+		if err != nil {
+			panic(fmt.Sprintf("config: build accepted protocols: %v", err))
+		}
+		conf.AcceptedProtocols = append(conf.AcceptedProtocols, protocols...)
+	}
 
 	if !conf.DisableResourceBuilding {
 		if pack, ok := packbuilder.BuildResourcePack(conf.Blocks); ok {
