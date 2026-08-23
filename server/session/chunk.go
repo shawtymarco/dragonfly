@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/df-mc/dragonfly/server/block"
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
@@ -151,7 +152,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 				Position:      protocol.ChunkPos(pos),
 				SubChunkLimit: protocol.Option(int32(c.HighestFilledSubChunk())),
 				BlobHashes:    []uint64{hash},
-				RawPayload:    []byte{0},
+				RawPayload:    borderBlockData(c, s.br),
 				CacheEnabled:  true,
 			})
 			return
@@ -182,8 +183,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 	}
 	s.blobMu.Unlock()
 
-	// Length of 1 byte for the border block count.
-	raw := bytes.NewBuffer(make([]byte, 1, 32))
+	raw := bytes.NewBuffer(borderBlockData(c, s.br))
 	enc := nbt.NewEncoderWithEncoding(raw, nbt.NetworkLittleEndian)
 	for bp, b := range blockEntities {
 		if n, ok := b.(world.NBTer); ok {
@@ -211,7 +211,7 @@ func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *c
 			SubChunkCount: 0,
 			Position:      protocol.ChunkPos(pos),
 			SubChunkLimit: protocol.Option(int32(c.HighestFilledSubChunk())),
-			RawPayload:    append(chunk.EncodeBiomes(c, chunk.NetworkEncoding), 0),
+			RawPayload:    append(chunk.EncodeBiomes(c, chunk.NetworkEncoding), borderBlockData(c, s.br)...),
 		})
 		return
 	}
@@ -223,8 +223,7 @@ func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *c
 	}
 	_, _ = chunkBuf.Write(data.Biomes)
 
-	// Length of 1 byte for the border block count.
-	chunkBuf.WriteByte(0)
+	_, _ = chunkBuf.Write(borderBlockData(c, s.br))
 
 	enc := nbt.NewEncoderWithEncoding(chunkBuf, nbt.NetworkLittleEndian)
 	for bp, b := range blockEntities {
@@ -241,6 +240,56 @@ func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *c
 		SubChunkCount: uint32(len(data.SubChunks)),
 		RawPayload:    append([]byte(nil), chunkBuf.Bytes()...),
 	})
+}
+
+// borderBlockData encodes the X/Z columns containing a border block. Bedrock uses these columns to extend border
+// collision vertically beyond the block itself. The count is a single byte, so at most 255 columns may be encoded.
+func borderBlockData(c *chunk.Chunk, registry world.BlockRegistry) []byte {
+	var columns [256]bool
+	for _, sub := range c.Sub() {
+		if sub.Empty() || len(sub.Layers()) == 0 {
+			continue
+		}
+		storage := sub.Layer(0)
+		palette := storage.Palette()
+		borderIndices := make(map[uint16]struct{})
+		for i := 0; i < palette.Len(); i++ {
+			b, ok := registry.BlockByRuntimeID(palette.Value(uint16(i)))
+			if !ok {
+				continue
+			}
+			if _, border := b.(block.Border); border {
+				borderIndices[uint16(i)] = struct{}{}
+			}
+		}
+		if len(borderIndices) == 0 {
+			continue
+		}
+		for x := byte(0); x < 16; x++ {
+			for z := byte(0); z < 16; z++ {
+				entry := int(z)<<4 | int(x)
+				if columns[entry] {
+					continue
+				}
+				for y := byte(0); y < 16; y++ {
+					if _, border := borderIndices[storage.PaletteIndex(x, y, z)]; border {
+						columns[entry] = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	data := make([]byte, 1, 16)
+	for entry, border := range columns {
+		if !border || data[0] == 255 {
+			continue
+		}
+		data = append(data, byte(entry))
+		data[0]++
+	}
+	return data
 }
 
 // trackBlob attempts to track the given blob. If the player has too many pending blobs, it returns false and closes the

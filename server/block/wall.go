@@ -139,11 +139,13 @@ func (w Wall) calculateConnections(tx *world.Tx, pos cube.Pos) (Wall, bool) {
 		// glass panes and iron bars) as well as the sides of fence gates.
 		connected := side.Model().FaceSolid(sidePos, face.Opposite(), tx)
 		if !connected {
-			if _, ok := tx.Block(sidePos).(Wall); ok {
+			switch tx.Block(sidePos).(type) {
+			case Wall, Border:
 				connected = true
-			} else if gate, ok := tx.Block(sidePos).(WoodFenceGate); ok {
+			}
+			if gate, ok := tx.Block(sidePos).(WoodFenceGate); !connected && ok {
 				connected = gate.Facing.Face().Axis() != face.Axis()
-			} else if _, ok := tx.Block(sidePos).Model().(model.Thin); ok {
+			} else if _, ok := tx.Block(sidePos).Model().(model.Thin); !connected && ok {
 				connected = true
 			}
 		}
@@ -220,6 +222,8 @@ func (w Wall) calculatePost(tx *world.Tx, pos cube.Pos) (Wall, bool) {
 		}
 	case Wall:
 		// A wall only make a wall become a post if it is a post itself.
+		post = above.Post
+	case Border:
 		post = above.Post
 	}
 	if !post {

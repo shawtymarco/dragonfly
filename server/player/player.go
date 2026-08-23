@@ -2174,6 +2174,10 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 		p.resendNearbyBlocks(pos)
 		return
 	}
+	if _, border := b.(block.Border); border && (!p.GameMode().CreativeInventory() || !p.Operator()) {
+		p.resendNearbyBlocks(pos)
+		return
+	}
 	if _, breakable := b.(block.Breakable); !breakable && !p.GameMode().CreativeInventory() {
 		p.resendNearbyBlocks(pos)
 		return

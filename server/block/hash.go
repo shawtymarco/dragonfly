@@ -27,6 +27,7 @@ const (
 	hashBlueIce
 	hashBone
 	hashBookshelf
+	hashBorder
 	hashBrewingStand
 	hashBricks
 	hashCactus
@@ -323,6 +324,10 @@ func (b Bone) Hash() (uint64, uint64) {
 
 func (Bookshelf) Hash() (uint64, uint64) {
 	return hashBookshelf, 0
+}
+
+func (b Border) Hash() (uint64, uint64) {
+	return hashBorder, uint64(b.NorthConnection.Uint8()) | uint64(b.EastConnection.Uint8())<<2 | uint64(b.SouthConnection.Uint8())<<4 | uint64(b.WestConnection.Uint8())<<6 | uint64(boolByte(b.Post))<<8
 }
 
 func (b BrewingStand) Hash() (uint64, uint64) {
