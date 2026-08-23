@@ -169,6 +169,16 @@ func (p *Player) DeviceID() string {
 	return string(p.session().ClientData().DeviceID)
 }
 
+// ServerAddress returns the exact address the player used to join the server,
+// including its port. If the Player is not connected to a network session, an
+// empty string is returned.
+func (p *Player) ServerAddress() string {
+	if p.session() == session.Nop {
+		return ""
+	}
+	return p.session().ClientData().ServerAddress
+}
+
 // DeviceModel returns the device model of the player. If the Player is not connected to a network session, an empty
 // string is returned. Otherwise, the device model the network session sent in the ClientData is returned.
 func (p *Player) DeviceModel() string {
