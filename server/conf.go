@@ -82,6 +82,9 @@ type Config struct {
 	// Compression is the packet compression used for connections accepted by
 	// the default listener. If nil, gophertunnel's default compression is used.
 	Compression packet.Compression
+	// AcceptedProtocols contains additional Minecraft protocol versions accepted
+	// by the default listener. The current native protocol is always accepted.
+	AcceptedProtocols []minecraft.Protocol
 	// PlayerProvider is the player.Provider used for storing and loading player
 	// data. If left as nil, player data will be newly created every time a
 	// player joins the server and no data will be stored.
@@ -206,6 +209,7 @@ func (conf Config) New() *Server {
 	}
 	// Copy resources so that the slice can't be edited afterward.
 	conf.Resources = slices.Clone(conf.Resources)
+	conf.AcceptedProtocols = slices.Clone(conf.AcceptedProtocols)
 
 	if conf.OperatorsFile == "" {
 		conf.OperatorsFile = "ops.txt"

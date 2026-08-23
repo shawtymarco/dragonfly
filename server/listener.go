@@ -28,6 +28,7 @@ func (uc UserConfig) listenerFunc(conf Config) (Listener, error) {
 		MaximumPlayers:         conf.MaxPlayers,
 		StatusProvider:         conf.StatusProvider,
 		AuthenticationDisabled: conf.AuthDisabled,
+		AcceptedProtocols:      conf.AcceptedProtocols,
 		ResourcePacks:          conf.Resources,
 		TexturePacksRequired:   conf.ResourcesRequired,
 		Compression:            conf.Compression,
