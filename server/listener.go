@@ -6,6 +6,8 @@ import (
 	"io"
 	"log/slog"
 	"slices"
+	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/df-mc/dragonfly/server/session"
@@ -40,8 +42,8 @@ func (uc UserConfig) listenerFunc(conf Config) (Listener, error) {
 		Compression:            conf.Compression,
 		Allow:                  conf.Allower.Allow,
 	}
-	cfg.FetchResourcePacks = func(login.IdentityData, login.ClientData, []*resource.Pack) []*resource.Pack {
-		return l.resourcePacks()
+	cfg.FetchResourcePacks = func(_ login.IdentityData, clientData login.ClientData, _ []*resource.Pack) []*resource.Pack {
+		return compatibleResourcePacks(clientData.GameVersion, l.resourcePacks())
 	}
 	if conf.Log.Enabled(context.Background(), slog.LevelDebug) {
 		cfg.ErrorLog = conf.Log.With("net origin", "gophertunnel")
@@ -73,6 +75,49 @@ func (l *listener) resourcePacks() []*resource.Pack {
 		return nil
 	}
 	return slices.Clone(*packs)
+}
+
+// compatibleResourcePacks removes packs that declare a minimum engine version
+// newer than the connecting client. Older Bedrock clients may terminate while
+// applying an incompatible required pack instead of reporting a useful error.
+func compatibleResourcePacks(gameVersion string, packs []*resource.Pack) []*resource.Pack {
+	compatible := make([]*resource.Pack, 0, len(packs))
+	for _, pack := range packs {
+		if pack == nil || resourcePackCompatible(gameVersion, pack.Manifest().Header.MinimumGameVersion) {
+			compatible = append(compatible, pack)
+		}
+	}
+	return compatible
+}
+
+func resourcePackCompatible(gameVersion string, minimum resource.Version) bool {
+	client, ok := parseResourcePackVersion(gameVersion)
+	return !ok || versionAtMost(minimum, client)
+}
+
+func parseResourcePackVersion(version string) (resource.Version, bool) {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return resource.Version{}, false
+	}
+	var parsed resource.Version
+	for index, part := range parts {
+		value, err := strconv.Atoi(part)
+		if err != nil || value < 0 {
+			return resource.Version{}, false
+		}
+		parsed[index] = value
+	}
+	return parsed, true
+}
+
+func versionAtMost(version, maximum resource.Version) bool {
+	for index := range version {
+		if version[index] != maximum[index] {
+			return version[index] < maximum[index]
+		}
+	}
+	return true
 }
 
 // Accept blocks until the next connection is established and returns it. An error is returned if the Listener was
