@@ -25,6 +25,7 @@ func NewItemPickupDelay(opts world.EntitySpawnOpts, i item.Stack, delay time.Dur
 	conf := itemConf
 	conf.Item = i
 	conf.PickupDelay = delay
+	conf.pickupDelaySet = true
 	return opts.New(ItemType, conf)
 }
 
