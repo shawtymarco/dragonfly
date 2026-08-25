@@ -25,7 +25,8 @@ type ItemBehaviourConfig struct {
 	ExistenceDuration time.Duration
 	// PickupDelay specifies how much time must expire before the item can be
 	// picked up by collectors. The default is time.Second / 2.
-	PickupDelay time.Duration
+	PickupDelay    time.Duration
+	pickupDelaySet bool
 }
 
 func (conf ItemBehaviourConfig) Apply(data *world.EntityData) {
@@ -40,7 +41,7 @@ func (conf ItemBehaviourConfig) New() *ItemBehaviour {
 	}
 	i = item.ReadNBT(item.WriteNBT(i, true), nil)
 
-	if conf.PickupDelay == 0 {
+	if conf.PickupDelay == 0 && !conf.pickupDelaySet {
 		conf.PickupDelay = time.Second / 2
 	}
 	if conf.ExistenceDuration == 0 {
@@ -181,10 +182,13 @@ func (i *ItemBehaviour) merge(e *Ent, other *Ent, tx *world.Tx) bool {
 		return false
 	}
 	a, b := otherBehaviour.i.AddStack(i.i)
+	pickupDelay := min(i.pickupDelay, otherBehaviour.pickupDelay)
 
-	tx.AddEntity(NewItem(world.EntitySpawnOpts{Position: other.Position(), Velocity: other.Velocity()}, a))
+	// Preserve the earliest pickup time when stacks merge. Resetting the delay
+	// here can indefinitely postpone collection for rapidly spawning items.
+	tx.AddEntity(NewItemPickupDelay(world.EntitySpawnOpts{Position: other.Position(), Velocity: other.Velocity()}, a, pickupDelay))
 	if !b.Empty() {
-		tx.AddEntity(NewItem(world.EntitySpawnOpts{Position: pos, Velocity: e.Velocity()}, b))
+		tx.AddEntity(NewItemPickupDelay(world.EntitySpawnOpts{Position: pos, Velocity: e.Velocity()}, b, pickupDelay))
 	}
 	_ = e.Close()
 	_ = other.Close()
@@ -209,7 +213,7 @@ func (i *ItemBehaviour) collect(e *Ent, collector Collector, tx *world.Tx) bool 
 	}
 	// Create a new item entity and shrink it by the amount of items that the
 	// collector collected.
-	tx.AddEntity(NewItem(world.EntitySpawnOpts{Position: pos}, i.i.Grow(-n)))
+	tx.AddEntity(NewItemPickupDelay(world.EntitySpawnOpts{Position: pos}, i.i.Grow(-n), i.pickupDelay))
 	_ = e.Close()
 	return true
 }
