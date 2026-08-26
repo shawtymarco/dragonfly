@@ -27,139 +27,43 @@ import (
 
 // Config contains options for starting a Minecraft server.
 type Config struct {
-	// Log is the Logger to use for logging information. If nil, Log is set to
-	// slog.Default(). Errors reported by the underlying network are only logged
-	// if Log has at least debug level.
 	Log *slog.Logger
-	// Listeners is a list of functions to create a Listener using a Config, one
-	// for each Listener to be added to the Server. If left empty, no players
-	// will be able to connect to the Server.
 	Listeners []func(conf Config) (Listener, error)
-	// Name is the name of the server. By default, it is shown to users in the
-	// server list before joining the server and when opening the in-game menu.
 	Name string
-	// Resources is a slice of resource packs to use on the server. When joining
-	// the server, the player will then first be requested to download these
-	// resource packs.
 	Resources []*resource.Pack
-	// ResourcesRequires specifies if the downloading of resource packs is
-	// required to join the server. If set to true, players will not be able to
-	// join without first downloading and applying the Resources above.
 	ResourcesRequired bool
-	// DisableResourceBuilding specifies if automatic resource pack building for
-	// custom items should be disabled. Dragonfly, by default, automatically
-	// produces a resource pack for custom items. If this is not desired (for
-	// example if a resource pack already exists), this can be set to false.
 	DisableResourceBuilding bool
-	// Allower may be used to specify what players can join the server and what
-	// players cannot. By returning false in the Allow method, for example if
-	// the player has been banned, will prevent the player from joining.
 	Allower Allower
-	// AuthDisabled specifies if XBOX Live authentication should be disabled.
-	// Note that this should generally only be done for testing purposes or for
-	// local games. Allowing players to join without authentication is generally
-	// a security hazard.
 	AuthDisabled bool
-	// MuteEmoteChat specifies if the player emote chat should be muted or not.
 	MuteEmoteChat bool
-	// MaxPlayers is the maximum amount of players allowed to join the server at
-	// once.
 	MaxPlayers int
-	// MaxChunkRadius is the maximum view distance that each player may have,
-	// measured in chunks. A chunk radius generally leads to more memory usage.
 	MaxChunkRadius int
-	// JoinMessage, QuitMessage and ShutdownMessage are the messages to send for
-	// when a player joins or quits the server and when the server shuts down,
-	// kicking all online players. If set, JoinMessage and QuitMessage must have
-	// exactly 1 argument, which will be replaced with the name of the player
-	// joining or quitting.
-	// ShutdownMessage is set to chat.MessageServerDisconnect if empty.
 	JoinMessage, QuitMessage, ShutdownMessage chat.Translation
-	// StatusProvider provides the server status shown to players in the server
-	// list. By default, StatusProvider will show the server name from the Name
-	// field and the current player count and maximum players.
 	StatusProvider minecraft.ServerStatusProvider
-	// Compression is the packet compression used for connections accepted by
-	// the default listener. If nil, gophertunnel's default compression is used.
 	Compression packet.Compression
-	// AcceptedProtocols contains additional Minecraft protocol versions accepted
-	// by the default listener. The current native protocol is always accepted.
 	AcceptedProtocols []minecraft.Protocol
-	// AcceptedProtocolsProvider may construct additional protocols after Blocks
-	// has been finalised. This is intended for adapters that need an immutable
-	// snapshot of the live block registry before the listener is created.
 	AcceptedProtocolsProvider func(blocks world.BlockRegistry) ([]minecraft.Protocol, error)
-	// PlayerProvider is the player.Provider used for storing and loading player
-	// data. If left as nil, player data will be newly created every time a
-	// player joins the server and no data will be stored.
 	PlayerProvider player.Provider
-	// WorldProvider is the world.Provider used for storing and loading world
-	// data. If left as nil, world data will be newly created every time and
-	// chunks will always be newly generated when loaded. The world provider
-	// will be used for storing/loading the default overworld, nether and end.
 	WorldProvider world.Provider
-	// ReadOnlyWorld specifies if the standard worlds should be read only. If
-	// set to true, the WorldProvider won't be saved to at all.
 	ReadOnlyWorld bool
-	// Generator should return a function that specifies the world.Generator to
-	// use for every world.Dimension (world.Overworld, world.Nether and
-	// world.End). If left empty, Generator will be set to a flat world for each
-	// of the dimensions (with netherrack and end stone for nether/end
-	// respectively).
 	Generator func(dim world.Dimension) world.Generator
-	// RandomTickSpeed specifies the rate at which blocks should be ticked in
-	// the default worlds. Setting this value to -1 or lower will stop random
-	// ticking altogether, while setting it higher results in faster ticking. If
-	// left as 0, the RandomTickSpeed will default to a speed of 3 blocks per
-	// sub chunk per tick (normal ticking speed).
 	RandomTickSpeed int
-	// SaveInterval specifies how often a World should be automatically saved to
-	// disk. This includes chunks, entities and level.dat data. If ReadOnlyWorld
-	// is set to true, changing SaveInterval will have no effect.
-	// By default, SaveInterval is set to 10 minutes. Setting SaveInterval to
-	// a negative number disables automatic saving entirely.
 	SaveInterval time.Duration
-	// ChunkUnloadInterval specifies how often unused chunks should be unloaded
-	// from memory when no longer in use. By default, this is set to 2 minutes.
-	// ChunkUnloadInterval should not be used to prevent chunks from unloading
-	// altogether. This should be done using a Loader with a custom Viewer.
 	ChunkUnloadInterval time.Duration
-	// ChunkLoadWorkers is the number of background workers that load and generate
-	// chunks in each world, defaulting to 1. Values above 1 generate chunks
-	// concurrently and require a concurrency-safe Generator.
 	ChunkLoadWorkers int
-	// Entities is a world.EntityRegistry with all entity types registered that
-	// may be added to the Server's worlds. If no entity types are registered,
-	// Entities will be set to entity.DefaultRegistry.
 	Entities world.EntityRegistry
-	// Blocks is the BlockRegistry template used for newly created worlds. If nil, world.DefaultBlockRegistry is used.
-	// For a non-default registry, set this to world.NewBlockRegistry(), register blocks on that instance, and ensure
-	// it is finalized before use.
 	Blocks world.BlockRegistry
-	// DisableNether, if true, does not create the nether world. Nether portals
-	// stay in the current world.
 	DisableNether bool
-	// DisableEnd, if true, does not create the end world. End portals stay in
-	// the current world.
 	DisableEnd bool
-	// DisableFireTick, if true, stops fire from ticking, spreading, or burning
-	// blocks. Existing fire stays until extinguished.
 	DisableFireTick bool
-	// DisableHopperTick, if true, stops hoppers from transferring or collecting
-	// items. Existing hoppers stay in the world.
 	DisableHopperTick bool
-	// DisableRedstoneTick, if true, discards pending redstone updates.
 	DisableRedstoneTick bool
-	// DisableSubChunkRequests, if true, sends complete LevelChunk payloads
-	// instead of asking clients to request individual sub-chunks.
 	DisableSubChunkRequests bool
-	// DisableVanillaRecipes, if true, skips registering the vanilla crafting,
-	// smithing, and brewing recipes.
 	DisableVanillaRecipes bool
-	// RandomTickFilter, if set, is passed to each default world and called
-	// before a block's RandomTick. Returning false skips that tick.
 	RandomTickFilter func(world.Block) bool
-	// OperatorsFile is the PMMP-style ops.txt path. Empty uses "ops.txt".
+	// Minigame contains opt-in fixed-map/minigame hot-path optimisations. The
+	// zero value preserves regular Dragonfly behaviour.
+	Minigame world.MinigameConfig
 	OperatorsFile string
 }
 
@@ -204,8 +108,6 @@ func (conf Config) New() *Server {
 		conf.Blocks = world.DefaultBlockRegistry
 	}
 
-	// Initialize the passed block registry and also initialize the default block registry which
-	// is used in some vanilla paths.
 	conf.Blocks.Finalize()
 	world.DefaultBlockRegistry.Finalize()
 	if conf.AcceptedProtocolsProvider != nil {
@@ -221,7 +123,6 @@ func (conf Config) New() *Server {
 			conf.Resources = append(conf.Resources, pack)
 		}
 	}
-	// Copy resources so that the slice can't be edited afterward.
 	conf.Resources = slices.Clone(conf.Resources)
 	conf.AcceptedProtocols = slices.Clone(conf.AcceptedProtocols)
 
@@ -250,13 +151,16 @@ func (conf Config) New() *Server {
 	}
 
 	srv.world = srv.createWorld(world.Overworld, &srv.nether, &srv.end)
+	srv.world.SetMinigameConfig(conf.Minigame)
 	if !conf.DisableNether {
 		srv.nether = srv.createWorld(world.Nether, &srv.world, &srv.end)
+		srv.nether.SetMinigameConfig(conf.Minigame)
 	} else {
 		srv.nether = nil
 	}
 	if !conf.DisableEnd {
 		srv.end = srv.createWorld(world.End, &srv.nether, &srv.world)
+		srv.end.SetMinigameConfig(conf.Minigame)
 	} else {
 		srv.end = nil
 	}
@@ -269,84 +173,49 @@ func (conf Config) New() *Server {
 // maximum players. UserConfig may be serialised and can be converted to a
 // Config by calling UserConfig.Config().
 type UserConfig struct {
-	// Network holds settings related to network aspects of the server.
 	Network struct {
-		// Address is the address on which the server should listen. Players may
-		// connect to this address in order to join.
 		Address string
 	}
 	Server struct {
-		// Name is the name of the server as it shows up in the server list.
 		Name string
-		// AuthEnabled controls whether players must be connected to Xbox Live
-		// in order to join the server.
 		AuthEnabled bool
-		// DisableJoinQuitMessages specifies if default join and quit messages
-		// for players should be disabled.
 		DisableJoinQuitMessages bool
-		// MuteEmoteChat specifies if the player emote chat should be muted or not.
 		MuteEmoteChat bool
-		// OperatorsFile is the ops.txt path (PMMP-style operator names). Empty uses "ops.txt".
 		OperatorsFile string
 	}
 	World struct {
-		// SaveData controls whether a world's data will be saved and loaded.
-		// If true, the server will use the default LevelDB data provider and if
-		// false, an empty provider will be used. To use your own provider, turn
-		// this value to false, as you will still be able to pass your own
-		// provider.
 		SaveData bool
-		// Folder is the folder that the data of the world resides in.
 		Folder string
-		// DisableNether skips creating the nether dimension. Portals do not
-		// transfer players there.
 		DisableNether bool
-		// DisableEnd skips creating the end dimension. Portals do not transfer
-		// players there.
 		DisableEnd bool
-		// DisableFireTick stops fire ticking, spreading, and burning blocks.
 		DisableFireTick bool
-		// DisableHopperTick stops hoppers transferring or collecting items.
 		DisableHopperTick bool
-		// DisableRedstoneTick discards pending redstone updates.
 		DisableRedstoneTick bool
-		// DisableSubChunkRequests sends complete chunks and ignores the optional
-		// client-driven sub-chunk request mode.
 		DisableSubChunkRequests bool
-		// RandomTickSpeed controls random block ticks. Values below zero disable
-		// random ticking, while zero keeps Dragonfly's default speed of three.
 		RandomTickSpeed int
-		// DisableVanillaRecipes skips registering vanilla crafting recipes.
 		DisableVanillaRecipes bool
+		Minigame struct {
+			DisablePlayerSurvivalTicks bool
+			DisablePlayerEffectTicks bool
+			DisablePortalTicks bool
+			DeduplicatePlayerCollisionTicks bool
+			FastSetBlock bool
+			FastBreakBlock bool
+			DisableBlockTicks bool
+			DisableScheduledBlockTicks bool
+			ActiveEntityTicking bool
+			MovementDirtyChunkTracking bool
+		}
 	}
 	Players struct {
-		// MaxCount is the maximum amount of players allowed to join the server
-		// at the same time. If set to 0, the amount of maximum players will
-		// grow every time a player joins.
 		MaxCount int
-		// MaximumChunkRadius is the maximum chunk radius that players may set
-		// in their settings. If they try to set it above this number, it will
-		// be capped and set to the max.
 		MaximumChunkRadius int
-		// SaveData controls whether a player's data will be saved and loaded.
-		// If true, the server will use the default LevelDB data provider and if
-		// false, an empty provider will be used. To use your own provider, turn
-		// this value to false, as you will still be able to pass your own
-		// provider.
 		SaveData bool
-		// Folder controls where the player data will be stored by the default
-		// LevelDB player provider if it is enabled.
 		Folder string
 	}
 	Resources struct {
-		// AutoBuildPack is if the server should automatically generate a
-		// resource pack for custom features.
 		AutoBuildPack bool
-		// Folder controls the location where resource packs will be loaded
-		// from.
 		Folder string
-		// Required is a boolean to force the client to load the resource pack
-		// on join. If they do not accept, they'll have to leave the server.
 		Required bool
 	}
 }
@@ -373,7 +242,19 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		DisableSubChunkRequests: uc.World.DisableSubChunkRequests,
 		RandomTickSpeed:         uc.World.RandomTickSpeed,
 		DisableVanillaRecipes:   uc.World.DisableVanillaRecipes,
-		OperatorsFile:           uc.Server.OperatorsFile,
+		Minigame: world.MinigameConfig{
+			DisablePlayerSurvivalTicks:     uc.World.Minigame.DisablePlayerSurvivalTicks,
+			DisablePlayerEffectTicks:       uc.World.Minigame.DisablePlayerEffectTicks,
+			DisablePortalTicks:             uc.World.Minigame.DisablePortalTicks,
+			DeduplicatePlayerCollisionTicks: uc.World.Minigame.DeduplicatePlayerCollisionTicks,
+			FastSetBlock:                   uc.World.Minigame.FastSetBlock,
+			FastBreakBlock:                 uc.World.Minigame.FastBreakBlock,
+			DisableBlockTicks:              uc.World.Minigame.DisableBlockTicks,
+			DisableScheduledBlockTicks:     uc.World.Minigame.DisableScheduledBlockTicks,
+			ActiveEntityTicking:            uc.World.Minigame.ActiveEntityTicking,
+			MovementDirtyChunkTracking:     uc.World.Minigame.MovementDirtyChunkTracking,
+		},
+		OperatorsFile: uc.Server.OperatorsFile,
 	}
 	if !uc.Server.DisableJoinQuitMessages {
 		conf.JoinMessage, conf.QuitMessage = chat.MessageJoin, chat.MessageQuit
@@ -416,9 +297,7 @@ func loadResources(dir string) ([]*resource.Pack, error) {
 	return packs, nil
 }
 
-// loadGenerator loads a standard world.Generator for a world.Dimension. The
-// generators returned are flat generators with grass/dirt, netherrack or end
-// stone depending on the dimension passed.
+// loadGenerator loads a standard world.Generator for a world.Dimension.
 func loadGenerator(dim world.Dimension) world.Generator {
 	switch dim {
 	case world.Overworld:
