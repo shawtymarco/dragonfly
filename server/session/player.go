@@ -579,9 +579,11 @@ func (s *Session) SendAbilities(c Controllable) {
 	}
 	if !mode.HasCollision() {
 		abilities |= protocol.AbilityNoClip
-		defer c.StartFlying()
-		// If the client is currently on the ground and turned to spectator mode, it will be unable to sprint during
-		// flight. In order to allow this, we force the client to be flying through a MovePlayer packet.
+		if id, ok := world.GameModeID(mode); !ok || id != 3 {
+			// Preserve the native spectator transition. PocketMine-style spectator
+			// establishes this state in Player.SetGameMode before the first sync.
+			defer c.StartFlying()
+		}
 		s.ViewEntityTeleport(c, c.Position())
 	}
 	playerPerm, cmdPerm := byte(packet.PermissionLevelMember), byte(protocol.CommandPermissionLevelAny)
@@ -637,7 +639,10 @@ func gameModeAbilities(mode world.GameMode) uint32 {
 		abilities |= protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
 	if id, ok := world.GameModeID(mode); ok && id == 3 {
-		abilities |= protocol.AbilityInstantBuild
+		// Faux spectator is forced into flight before the packet is emitted. Keep
+		// the required base values explicit as well as the spectator override
+		// layer so the client never observes a toggleable intermediate state.
+		abilities |= protocol.AbilityInstantBuild | protocol.AbilityFlying | protocol.AbilityNoClip
 		abilities &^= protocol.AbilityMayFly | protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
 	return abilities

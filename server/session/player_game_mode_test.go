@@ -19,6 +19,9 @@ func TestPocketMineSpectatorPresentation(t *testing.T) {
 	if abilities&protocol.AbilityMayFly != 0 {
 		t.Fatalf("spectator abilities = %#x, PMMP locks flying instead of allowing a toggle", abilities)
 	}
+	if abilities&protocol.AbilityFlying == 0 || abilities&protocol.AbilityNoClip == 0 {
+		t.Fatalf("spectator abilities = %#x, forced flight and noclip must be present in the first sync", abilities)
+	}
 	forbidden := uint32(protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs)
 	if abilities&forbidden != 0 {
 		t.Fatalf("spectator abilities = %#x, interaction bits must remain disabled", abilities)
