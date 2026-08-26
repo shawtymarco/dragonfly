@@ -47,6 +47,7 @@ type Session struct {
 
 	chunkLoader                 *world.Loader
 	chunkRadius, maxChunkRadius int32
+	subChunkRequests            bool
 
 	emoteChatMuted bool
 
@@ -165,6 +166,9 @@ type Config struct {
 	Log *slog.Logger
 
 	MaxChunkRadius int
+	// DisableSubChunkRequests makes the session send complete LevelChunk
+	// payloads instead of enabling client-driven sub-chunk requests.
+	DisableSubChunkRequests bool
 
 	EmoteChatMuted bool
 
@@ -208,6 +212,7 @@ func (conf Config) New(conn Conn) *Session {
 		blobs:                  map[uint64][]byte{},
 		chunkRadius:            int32(r),
 		maxChunkRadius:         int32(conf.MaxChunkRadius),
+		subChunkRequests:       !conf.DisableSubChunkRequests,
 		emoteChatMuted:         conf.EmoteChatMuted,
 		conn:                   conn,
 		currentEntityRuntimeID: 1,

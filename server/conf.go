@@ -150,6 +150,9 @@ type Config struct {
 	DisableHopperTick bool
 	// DisableRedstoneTick, if true, discards pending redstone updates.
 	DisableRedstoneTick bool
+	// DisableSubChunkRequests, if true, sends complete LevelChunk payloads
+	// instead of asking clients to request individual sub-chunks.
+	DisableSubChunkRequests bool
 	// DisableVanillaRecipes, if true, skips registering the vanilla crafting,
 	// smithing, and brewing recipes.
 	DisableVanillaRecipes bool
@@ -307,6 +310,12 @@ type UserConfig struct {
 		DisableHopperTick bool
 		// DisableRedstoneTick discards pending redstone updates.
 		DisableRedstoneTick bool
+		// DisableSubChunkRequests sends complete chunks and ignores the optional
+		// client-driven sub-chunk request mode.
+		DisableSubChunkRequests bool
+		// RandomTickSpeed controls random block ticks. Values below zero disable
+		// random ticking, while zero keeps Dragonfly's default speed of three.
+		RandomTickSpeed int
 		// DisableVanillaRecipes skips registering vanilla crafting recipes.
 		DisableVanillaRecipes bool
 	}
@@ -361,6 +370,8 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		DisableFireTick:         uc.World.DisableFireTick,
 		DisableHopperTick:       uc.World.DisableHopperTick,
 		DisableRedstoneTick:     uc.World.DisableRedstoneTick,
+		DisableSubChunkRequests: uc.World.DisableSubChunkRequests,
+		RandomTickSpeed:         uc.World.RandomTickSpeed,
 		DisableVanillaRecipes:   uc.World.DisableVanillaRecipes,
 		OperatorsFile:           uc.Server.OperatorsFile,
 	}

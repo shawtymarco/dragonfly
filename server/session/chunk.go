@@ -13,10 +13,6 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
-// subChunkRequests is set to true to enable the sub-chunk request system. This can (likely) cause unexpected issues,
-// but also solves issues with block entities such as item frames and lecterns as of v1.19.10.
-const subChunkRequests = true
-
 // ViewChunk ...
 func (s *Session) ViewChunk(pos world.ChunkPos, dim world.Dimension, blockEntities map[cube.Pos]world.Block, c *chunk.Chunk) {
 	if !s.conn.ClientCacheEnabled() {
@@ -143,7 +139,7 @@ func (s *Session) dimensionID(dim world.Dimension) int32 {
 // sendBlobHashes sends chunk blob hashes of the data of the chunk and stores the data in a map of blobs. Only
 // data that the client doesn't yet have will be sent over the network.
 func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
-	if subChunkRequests {
+	if s.subChunkRequests {
 		biomes := chunk.EncodeBiomes(c, s.chunkEncoding)
 		if hash := xxhash.Sum64(biomes); s.trackBlob(hash, biomes) {
 			s.writePacket(&packet.LevelChunk{
@@ -205,7 +201,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 
 // sendNetworkChunk sends a network encoded chunk to the client.
 func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
-	if subChunkRequests {
+	if s.subChunkRequests {
 		s.writePacket(&packet.LevelChunk{
 			Dimension:     s.dimensionID(dim),
 			SubChunkCount: 0,
