@@ -28,7 +28,6 @@ func (t ticker) tickLoop(w *World) {
 			<-w.exec(t.tick)
 			w.recordTickDuration(time.Since(start))
 		case <-w.closing:
-			// World is being closed: Stop ticking and get rid of a task.
 			w.running.Done()
 			return
 		}
@@ -53,13 +52,9 @@ func (t ticker) tick(tx *Tx) {
 
 	w.set.Lock()
 	if s := w.set.Spawn; s[1] > tx.Range()[1] && w.Dimension() == Overworld {
-		// Vanilla will set the spawn position's Y value to max to indicate that
-		// the player should spawn at the highest position in the world.
 		w.set.Spawn[1] = tx.highestObstructingBlock(s[0], s[2]) + 1
 	}
 	if len(viewers) == 0 && w.set.CurrentTick != 0 && !w.conf.Synchronous {
-		// Don't continue ticking if no viewers are in the world. Synchronous
-		// worlds only tick on explicit AdvanceTick calls, so they always tick.
 		w.set.Unlock()
 		return
 	}
@@ -80,13 +75,11 @@ func (t ticker) tick(tx *Tx) {
 		tx.w.set.RequiredSleepTicks--
 		tryAdvanceDay = tx.w.set.RequiredSleepTicks <= 0
 	}
-
 	w.set.Unlock()
 
 	if tryAdvanceDay {
 		t.tryAdvanceDay(tx, cycle)
 	}
-
 	if tick%20 == 0 {
 		for _, viewer := range viewers {
 			if w.Dimension().TimeCycle() && cycle {
@@ -101,9 +94,18 @@ func (t ticker) tick(tx *Tx) {
 		w.tickLightning(tx)
 	}
 
+	cfg := w.conf.Minigame
 	t.tickEntities(tx, tick)
-	w.scheduledUpdates.tick(tx, tick)
-	t.tickBlocksRandomly(tx, loaders, tick)
+	if cfg.DisableScheduledBlockTicks {
+		w.scheduledUpdates.currentTick = tick
+		w.scheduledUpdates.ticks = w.scheduledUpdates.ticks[:0]
+		clear(w.scheduledUpdates.furthestTicks)
+	} else {
+		w.scheduledUpdates.tick(tx, tick)
+	}
+	if !cfg.DisableBlockTicks {
+		t.tickBlocksRandomly(tx, loaders, tick)
+	}
 	t.performNeighbourUpdates(tx)
 	w.redstone.tick(tx, tick)
 }
@@ -136,7 +138,6 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 		randomBlocks  []cube.Pos
 	)
 	if r == 0 {
-		// NOP if the simulation distance is 0.
 		return
 	}
 
@@ -148,38 +149,26 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 			loader.mu.RLock()
 			pos := loader.pos
 			loader.mu.RUnlock()
-
 			loaded = append(loaded, pos)
 		}
 	}
 
 	for pos, c := range tx.World().chunks {
 		if !t.anyWithinDistance(pos, loaded, r) {
-			// No loaders in this chunk that are within the simulation distance, so proceed to the next.
 			continue
 		}
 		blockEntities = append(blockEntities, slices.Collect(maps.Keys(c.BlockEntities))...)
 
 		cx, cz := int(pos[0]<<4), int(pos[1]<<4)
-
-		// We generate up to j random positions for every sub chunk.
 		for j := 0; j < tx.World().conf.RandomTickSpeed; j++ {
 			x, y, z := g.uint4(tx.World().r), g.uint4(tx.World().r), g.uint4(tx.World().r)
-
 			for i, sub := range c.Sub() {
 				if sub.Empty() {
-					// SubChunk is empty, so skip it right away.
 					continue
 				}
-				// Generally we would want to make sure the block has its block entities, but provided blocks
-				// with block entities are generally ticked already, we are safe to assume that blocks
-				// implementing the RandomTicker don't rely on additional block entity data.
 				if rid := sub.Layers()[0].At(x, y, z); tx.World().conf.Blocks.RandomTickBlock(rid) {
 					subY := (i + (tx.Range().Min() >> 4)) << 4
 					randomBlocks = append(randomBlocks, cube.Pos{cx + int(x), subY + int(y), cz + int(z)})
-
-					// Only generate new coordinates if a tickable block was actually found. If not, we can just re-use
-					// the coordinates for the next sub chunk.
 					x, y, z = g.uint4(tx.World().r), g.uint4(tx.World().r), g.uint4(tx.World().r)
 				}
 			}
@@ -209,62 +198,136 @@ func (t ticker) anyWithinDistance(pos ChunkPos, loaded []ChunkPos, r int32) bool
 	for _, chunkPos := range loaded {
 		xDiff, zDiff := chunkPos[0]-pos[0], chunkPos[1]-pos[1]
 		if (xDiff*xDiff)+(zDiff*zDiff) <= r*r {
-			// The chunk was within the simulation distance of at least one viewer, so we can proceed to
-			// ticking the block.
 			return true
 		}
 	}
 	return false
 }
 
-// tickEntities ticks all entities in the world, making sure they are still located in the correct chunks and
-// updating where necessary.
+// tickEntities ticks entities using either the normal full-map scan or the
+// opt-in minigame active/dirty paths.
 func (t ticker) tickEntities(tx *Tx, tick int64) {
-	for handle, lastPos := range tx.World().entities {
-		e := handle.mustEntity(tx)
-		chunkPos := chunkPosFromVec3(handle.data.Pos)
+	w := tx.World()
+	cfg := w.conf.Minigame
+	if !cfg.ActiveEntityTicking && !cfg.MovementDirtyChunkTracking {
+		for handle, lastPos := range w.entities {
+			t.reconcileEntityChunk(tx, handle, lastPos)
+			pos, ok := w.entities[handle]
+			if !ok {
+				continue
+			}
+			c, ok := w.chunks[pos]
+			if !ok {
+				continue
+			}
+			if w.conf.Synchronous || len(c.viewers) > 0 {
+				t.tickEntity(tx, handle, tick, cfg)
+			}
+		}
+		return
+	}
 
-		c, ok := tx.World().chunks[chunkPos]
+	if cfg.MovementDirtyChunkTracking {
+		for _, handle := range w.takeMovementDirty() {
+			if lastPos, ok := w.entities[handle]; ok {
+				t.reconcileEntityChunk(tx, handle, lastPos)
+			}
+		}
+		// A low-frequency audit makes dirty tracking fail-safe for custom entity
+		// code that mutates position without calling MarkEntityMovementDirty.
+		if tick%20 == 0 {
+			for handle, lastPos := range w.entities {
+				t.reconcileEntityChunk(tx, handle, lastPos)
+			}
+		}
+	} else {
+		// ActiveEntityTicking alone still needs exact chunk membership each tick.
+		for handle, lastPos := range w.entities {
+			t.reconcileEntityChunk(tx, handle, lastPos)
+		}
+	}
+
+	if cfg.ActiveEntityTicking && !w.conf.Synchronous {
+		for _, c := range w.chunks {
+			if len(c.viewers) == 0 {
+				continue
+			}
+			for _, handle := range slices.Clone(c.Entities) {
+				if handle == nil || handle.Closed() {
+					continue
+				}
+				t.tickEntity(tx, handle, tick, cfg)
+			}
+		}
+		return
+	}
+
+	// Dirty tracking without active-chunk ticking still scans handles to tick
+	// them, but avoids recomputing their chunk position every tick.
+	for handle, pos := range w.entities {
+		c, ok := w.chunks[pos]
 		if !ok {
 			continue
 		}
-
-		if lastPos != chunkPos {
-			// The entity was stored using an outdated chunk position. We update it and make sure it is ready
-			// for loaders to view it.
-			tx.World().entities[handle] = chunkPos
-			c.Entities = append(c.Entities, handle)
-
-			var viewers []Viewer
-
-			// When changing an entity's world, then teleporting it immediately, we could end up in a situation
-			// where the old chunk of the entity was not loaded. In this case, it should be safe simply to ignore
-			// the loaders from the old chunk. We can assume they never saw the entity in the first place.
-			if old, ok := tx.World().chunks[lastPos]; ok {
-				old.Entities = sliceutil.DeleteVal(old.Entities, handle)
-				viewers = old.viewers
-			}
-
-			for _, viewer := range viewers {
-				if slices.Index(c.viewers, viewer) == -1 {
-					// First we hide the entity from all loaders that were previously viewing it, but no
-					// longer are.
-					viewer.HideEntity(e)
-				}
-			}
-			for _, viewer := range c.viewers {
-				if slices.Index(viewers, viewer) == -1 {
-					// Then we show the entity to all loaders that are now viewing the entity in the new
-					// chunk.
-					showEntity(e, viewer)
-				}
-			}
+		if w.conf.Synchronous || len(c.viewers) > 0 {
+			t.tickEntity(tx, handle, tick, cfg)
 		}
+	}
+}
 
-		if tx.World().conf.Synchronous || len(c.viewers) > 0 {
-			if te, ok := e.(TickerEntity); ok {
-				te.Tick(tx, tick)
-			}
+func (t ticker) tickEntity(tx *Tx, handle *EntityHandle, tick int64, cfg MinigameConfig) {
+	if handle == nil || handle.Closed() {
+		return
+	}
+	e := handle.mustEntity(tx)
+	before := handle.data.Pos
+	if cfg.specialisedEntityTick() {
+		if mt, ok := e.(minigameTickerEntity); ok {
+			mt.MinigameTick(tx, tick, cfg)
+		} else if te, ok := e.(TickerEntity); ok {
+			te.Tick(tx, tick)
+		}
+	} else if te, ok := e.(TickerEntity); ok {
+		te.Tick(tx, tick)
+	}
+	if cfg.MovementDirtyChunkTracking && !handle.Closed() && !before.ApproxEqual(handle.data.Pos) {
+		movementDirtyEntities.Store(handle, struct{}{})
+	}
+}
+
+func (t ticker) reconcileEntityChunk(tx *Tx, handle *EntityHandle, lastPos ChunkPos) {
+	if handle == nil || handle.Closed() {
+		return
+	}
+	w := tx.World()
+	chunkPos := chunkPosFromVec3(handle.data.Pos)
+	if lastPos == chunkPos {
+		return
+	}
+	c, ok := w.chunks[chunkPos]
+	if !ok {
+		return
+	}
+
+	e := handle.mustEntity(tx)
+	w.entities[handle] = chunkPos
+	if slices.Index(c.Entities, handle) == -1 {
+		c.Entities = append(c.Entities, handle)
+	}
+
+	var viewers []Viewer
+	if old, ok := w.chunks[lastPos]; ok {
+		old.Entities = sliceutil.DeleteVal(old.Entities, handle)
+		viewers = old.viewers
+	}
+	for _, viewer := range viewers {
+		if slices.Index(c.viewers, viewer) == -1 {
+			viewer.HideEntity(e)
+		}
+	}
+	for _, viewer := range c.viewers {
+		if slices.Index(viewers, viewer) == -1 {
+			showEntity(e, viewer)
 		}
 	}
 }
@@ -282,7 +345,6 @@ func (g *randUint4) uint4(r *rand.Rand) uint8 {
 		g.n = 16
 	}
 	val := g.x & 0b1111
-
 	g.x >>= 4
 	g.n--
 	return uint8(val)
@@ -314,11 +376,9 @@ func newScheduledTickQueue(tick int64) *scheduledTickQueue {
 }
 
 // tick processes scheduled ticks, calling ScheduledTicker.ScheduledTick for any
-// block update that is scheduled for the tick passed, and removing it from the
-// queue.
+// block update that is scheduled for the tick passed, and removing it from the queue.
 func (queue *scheduledTickQueue) tick(tx *Tx, tick int64) {
 	queue.currentTick = tick
-
 	w := tx.World()
 	for _, t := range queue.ticks {
 		if t.t > tick {
@@ -333,20 +393,11 @@ func (queue *scheduledTickQueue) tick(tx *Tx, tick int64) {
 			}
 		}
 	}
-
-	// Clear scheduled ticks that were processed from the queue.
-	queue.ticks = slices.DeleteFunc(queue.ticks, func(t scheduledTick) bool {
-		return t.t <= tick
-	})
-	maps.DeleteFunc(queue.furthestTicks, func(index scheduledTickIndex, t int64) bool {
-		return t <= tick
-	})
+	queue.ticks = slices.DeleteFunc(queue.ticks, func(t scheduledTick) bool { return t.t <= tick })
+	maps.DeleteFunc(queue.furthestTicks, func(_ scheduledTickIndex, t int64) bool { return t <= tick })
 }
 
-// schedule schedules a block update at the position passed for the block type
-// passed after a specific delay. A block update is only scheduled if no block
-// update with the same position and block type is already scheduled at a later
-// time than the newly scheduled update.
+// schedule schedules a block update at the position passed for the block type passed after a specific delay.
 func (queue *scheduledTickQueue) schedule(br BlockRegistry, pos cube.Pos, b Block, delay time.Duration) {
 	resTick := queue.currentTick + int64(max(delay/(time.Second/20), 1))
 	index := scheduledTickIndex{pos: pos, hash: br.BlockHash(b)}
@@ -378,8 +429,7 @@ func (queue *scheduledTickQueue) removeChunk(pos ChunkPos) {
 	})
 }
 
-// add adds a slice of scheduled ticks to the queue. It assumes no duplicate
-// ticks are present in the slice.
+// add adds a slice of scheduled ticks to the queue. It assumes no duplicate ticks are present in the slice.
 func (queue *scheduledTickQueue) add(ticks []scheduledTick) {
 	queue.ticks = append(queue.ticks, ticks...)
 	for _, t := range ticks {
