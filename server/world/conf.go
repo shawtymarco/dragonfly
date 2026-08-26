@@ -100,6 +100,9 @@ type Config struct {
 	// RandomTickFilter, if set, is called before a block's RandomTick. Returning
 	// false skips that tick. Nil allows every random ticker.
 	RandomTickFilter func(Block) bool
+	// Minigame holds opt-in hot-path optimisations for fixed-map minigame worlds.
+	// The zero value preserves normal Dragonfly behaviour.
+	Minigame MinigameConfig
 }
 
 // New creates a new World using the Config conf. The World returned will start
