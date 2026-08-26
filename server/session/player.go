@@ -638,7 +638,7 @@ func gameModeAbilities(mode world.GameMode) uint32 {
 	}
 	if id, ok := world.GameModeID(mode); ok && id == 3 {
 		abilities |= protocol.AbilityInstantBuild
-		abilities &^= protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
+		abilities &^= protocol.AbilityMayFly | protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
 	return abilities
 }

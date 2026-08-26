@@ -13,8 +13,11 @@ func TestPocketMineSpectatorPresentation(t *testing.T) {
 		t.Fatalf("spectator game type = %d, want creative", got)
 	}
 	abilities := gameModeAbilities(world.GameModeSpectator)
-	if abilities&protocol.AbilityInstantBuild == 0 || abilities&protocol.AbilityMayFly == 0 || abilities&protocol.AbilityInvulnerable == 0 {
-		t.Fatalf("spectator abilities = %#x, missing PMMP creative/flying/invulnerable bits", abilities)
+	if abilities&protocol.AbilityInstantBuild == 0 || abilities&protocol.AbilityInvulnerable == 0 {
+		t.Fatalf("spectator abilities = %#x, missing PMMP creative/invulnerable bits", abilities)
+	}
+	if abilities&protocol.AbilityMayFly != 0 {
+		t.Fatalf("spectator abilities = %#x, PMMP locks flying instead of allowing a toggle", abilities)
 	}
 	forbidden := uint32(protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs)
 	if abilities&forbidden != 0 {
