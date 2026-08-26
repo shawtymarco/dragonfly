@@ -13,14 +13,17 @@ import (
 type PlayerActionHandler struct{}
 
 // Handle ...
-func (*PlayerActionHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, c Controllable) error {
+func (*PlayerActionHandler) Handle(p packet.Packet, s *Session, tx *world.Tx, c Controllable) error {
 	pk := p.(*packet.PlayerAction)
+	return handlePlayerAction(pk.ActionType, pk.BlockFace, pk.BlockPosition, pk.EntityRuntimeID, s, tx, c)
+}
 
-	return handlePlayerAction(pk.ActionType, pk.BlockFace, pk.BlockPosition, pk.EntityRuntimeID, s, c)
+type minigameFastBlockBreaker interface {
+	FastBreakBlock(pos cube.Pos)
 }
 
 // handlePlayerAction handles an action performed by a player, found in packet.PlayerAction and packet.PlayerAuthInput.
-func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityRuntimeID uint64, s *Session, c Controllable) error {
+func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityRuntimeID uint64, s *Session, tx *world.Tx, c Controllable) error {
 	if entityRuntimeID != selfEntityRuntimeID {
 		return errSelfRuntimeID
 	}
@@ -40,6 +43,13 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 	case protocol.PlayerActionPredictDestroyBlock, protocol.PlayerActionStopBreak:
 		s.swingingArm.Store(true)
 		defer s.swingingArm.Store(false)
+		if tx != nil && tx.MinigameConfig().FastBreakBlock {
+			if fast, ok := c.(minigameFastBlockBreaker); ok {
+				c.AbortBreaking()
+				fast.FastBreakBlock(s.breakingPos)
+				break
+			}
+		}
 		c.FinishBreaking()
 	case protocol.PlayerActionCrackBreak:
 		// Don't do anything for this action. It is no longer used. Block
