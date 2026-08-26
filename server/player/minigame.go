@@ -30,7 +30,6 @@ func (p *Player) MinigameTick(tx *world.Tx, current int64, conf world.MinigameCo
 				p.AddEffect(effect.New(effect.WaterBreathing, 1, time.Second*10).WithoutParticles())
 			}
 		}
-
 		if _, ok := p.Armour().Chestplate().Item().(item.Elytra); ok && p.Gliding() {
 			if p.glideTicks += 1; p.glideTicks%20 == 0 {
 				d := p.damageItem(p.Armour().Chestplate(), 1)
@@ -42,36 +41,27 @@ func (p *Player) MinigameTick(tx *world.Tx, current int64, conf world.MinigameCo
 		}
 	}
 
-	// PlayerAuthInput -> Player.Move already runs these scans for normal network
-	// players. Keep them for non-network entities and when deduplication is off.
 	if !conf.DeduplicatePlayerCollisionTicks || p.session() == session.Nop {
 		p.checkBlockCollisions(p.data.Vel)
 		p.onGround = p.checkOnGround(mgl64.Vec3{})
 	}
-	// Stepper behaviour is not performed by Player.Move, so retain it even when
-	// collision/on-ground scans are deduplicated.
 	p.checkEntitySteppers()
 
 	if !conf.DisablePlayerEffectTicks {
 		p.effects.Tick(p, p.tx)
 	}
-
 	if !conf.DisablePlayerSurvivalTicks {
 		p.tickFood()
 		p.tickAirSupply()
 	}
 
-	// Void handling is useful for essentially every arena game and intentionally
-	// remains outside the survival flag.
 	if p.Position()[1] < float64(p.tx.Range()[0]) {
 		p.Hurt(4, entity.VoidDamageSource{})
 	}
-
 	if !conf.DisablePlayerSurvivalTicks {
 		if p.insideOfSolid() {
 			p.Hurt(1, entity.SuffocationDamageSource{})
 		}
-
 		if p.OnFireDuration() > 0 {
 			p.fireTicks -= 1
 			if !p.GameMode().AllowsTakingDamage() || p.OnFireDuration() <= 0 || p.tx.RainingAt(cube.PosFromVec3(p.Position())) {
@@ -108,7 +98,6 @@ func (p *Player) MinigameTick(tx *world.Tx, current int64, conf world.MinigameCo
 
 	p.session().SendDebugShapes(tx.World().Dimension())
 	p.session().SendHudUpdates()
-
 	if p.prevWorld != tx.World() && p.prevWorld != nil {
 		p.Handler().HandleChangeWorld(p, p.prevWorld, tx.World())
 	}
@@ -118,7 +107,6 @@ func (p *Player) MinigameTick(tx *world.Tx, current int64, conf world.MinigameCo
 	if p.session() == session.Nop && !p.Immobile() {
 		m := p.mc.TickMovement(p, p.Position(), p.Velocity(), p.Rotation(), p.tx)
 		m.Send()
-
 		p.data.Vel = m.Velocity()
 		p.Move(m.Position().Sub(p.Position()), 0, 0)
 	} else {
@@ -127,10 +115,21 @@ func (p *Player) MinigameTick(tx *world.Tx, current int64, conf world.MinigameCo
 	if !before.ApproxEqual(p.Position()) {
 		world.MarkEntityMovementDirty(p)
 	}
-
 	if !conf.DisablePortalTicks {
 		p.portalTravel.StopPortalContact()
 	}
+}
+
+// FastFinishBreaking mirrors FinishBreaking's state validation before using the
+// reduced minigame break path.
+func (p *Player) FastFinishBreaking() {
+	if !p.breaking {
+		p.resendNearbyBlock(p.breakingPos)
+		return
+	}
+	pos := p.breakingPos
+	p.AbortBreaking()
+	p.FastBreakBlock(pos)
 }
 
 // FastBreakBlock breaks a block using the reduced minigame path when enabled.
@@ -142,7 +141,6 @@ func (p *Player) FastBreakBlock(pos cube.Pos) {
 		p.BreakBlock(pos)
 		return
 	}
-
 	b := p.tx.Block(pos)
 	if _, air := b.(block.Air); air {
 		return
@@ -167,7 +165,6 @@ func (p *Player) FastBreakBlock(pos cube.Pos) {
 		p.resendNearbyBlocks(pos)
 		return
 	}
-
 	p.SwingArm()
 	p.tx.FastSetBlock(pos, nil)
 	p.tx.AddParticle(pos.Vec3Centre(), particle.BlockBreak{Block: b})
