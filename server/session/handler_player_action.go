@@ -20,6 +20,7 @@ func (*PlayerActionHandler) Handle(p packet.Packet, s *Session, tx *world.Tx, c 
 
 type minigameFastBlockBreaker interface {
 	FastBreakBlock(pos cube.Pos)
+	FastFinishBreaking()
 }
 
 // handlePlayerAction handles an action performed by a player, found in packet.PlayerAction and packet.PlayerAuthInput.
@@ -45,8 +46,7 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 		defer s.swingingArm.Store(false)
 		if tx != nil && tx.MinigameConfig().FastBreakBlock {
 			if fast, ok := c.(minigameFastBlockBreaker); ok {
-				c.AbortBreaking()
-				fast.FastBreakBlock(s.breakingPos)
+				fast.FastFinishBreaking()
 				break
 			}
 		}
