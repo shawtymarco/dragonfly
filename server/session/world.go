@@ -48,6 +48,13 @@ type NetworkItemEntityBehaviour interface {
 	NetworkItem() (item.Stack, bool)
 }
 
+// NetworkBlockEntityBehaviour supplies the block state carried by a generic
+// falling-block replay actor. Text actors use air so only their name tag is
+// visible, while recorded falling blocks retain their original appearance.
+type NetworkBlockEntityBehaviour interface {
+	NetworkBlock() (world.Block, bool)
+}
+
 // OffsetEntity is a world.EntityType that has an additional offset when sent
 // over network. This is mostly the case for older entities such as players and
 // TNT.
@@ -145,6 +152,11 @@ func (s *Session) ViewEntity(e world.Entity) {
 					EntityMetadata:  metadata,
 				})
 				return
+			}
+		}
+		if provider, ok := v.Behaviour().(NetworkBlockEntityBehaviour); ok {
+			if carriedBlock, blockActor := provider.NetworkBlock(); blockActor {
+				metadata[protocol.EntityDataKeyVariant] = int32(s.br.BlockRuntimeID(carriedBlock))
 			}
 		}
 		switch e.H().Type() {
