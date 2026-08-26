@@ -34,6 +34,20 @@ type NetworkEncodeableEntity interface {
 	NetworkEncodeEntity() string
 }
 
+// NetworkEncodeableEntityBehaviour supplies a per-entity network identifier.
+// It is used by replay actors whose persistent Dragonfly type is shared while
+// their original Bedrock actor identifier differs for each instance.
+type NetworkEncodeableEntityBehaviour interface {
+	NetworkEncodeEntity() string
+}
+
+// NetworkItemEntityBehaviour supplies the stack required by AddItemActor for a
+// generic replay entity. The bool is false for non-item instances sharing the
+// same persistent Dragonfly entity type.
+type NetworkItemEntityBehaviour interface {
+	NetworkItem() (item.Stack, bool)
+}
+
 // OffsetEntity is a world.EntityType that has an additional offset when sent
 // over network. This is mostly the case for older entities such as players and
 // TNT.
@@ -120,6 +134,19 @@ func (s *Session) ViewEntity(e world.Entity) {
 		}
 		return
 	case *entity.Ent:
+		if provider, ok := v.Behaviour().(NetworkItemEntityBehaviour); ok {
+			if stack, itemActor := provider.NetworkItem(); itemActor {
+				s.writePacket(&packet.AddItemActor{
+					EntityUniqueID:  int64(runtimeID),
+					EntityRuntimeID: runtimeID,
+					Item:            instanceFromItem(s.br, stack),
+					Position:        vec64To32(v.Position()),
+					Velocity:        vec64To32(v.Velocity()),
+					EntityMetadata:  metadata,
+				})
+				return
+			}
+		}
 		switch e.H().Type() {
 		case entity.ItemType:
 			s.writePacket(&packet.AddItemActor{
@@ -135,6 +162,11 @@ func (s *Session) ViewEntity(e world.Entity) {
 			metadata[protocol.EntityDataKeyVariant] = int32(s.br.BlockRuntimeID(block.Air{}))
 		case entity.FallingBlockType:
 			metadata[protocol.EntityDataKeyVariant] = int32(s.br.BlockRuntimeID(v.Behaviour().(*entity.FallingBlockBehaviour).Block()))
+		}
+	}
+	if v, ok := e.(*entity.Ent); ok {
+		if provider, ok := v.Behaviour().(NetworkEncodeableEntityBehaviour); ok {
+			id = provider.NetworkEncodeEntity()
 		}
 	}
 	if v, ok := e.H().Type().(NetworkEncodeableEntity); ok {

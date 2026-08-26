@@ -571,9 +571,8 @@ func (s *Session) SendGameMode(c Controllable) {
 
 // SendAbilities sends the abilities of the Controllable entity of the session to the client.
 func (s *Session) SendAbilities(c Controllable) {
-	mode, abilities := c.GameMode(), uint32(0)
+	mode, abilities := c.GameMode(), gameModeAbilities(c.GameMode())
 	if mode.AllowsFlying() {
-		abilities |= protocol.AbilityMayFly
 		if c.Flying() {
 			abilities |= protocol.AbilityFlying
 		}
@@ -584,18 +583,6 @@ func (s *Session) SendAbilities(c Controllable) {
 		// If the client is currently on the ground and turned to spectator mode, it will be unable to sprint during
 		// flight. In order to allow this, we force the client to be flying through a MovePlayer packet.
 		s.ViewEntityTeleport(c, c.Position())
-	}
-	if !mode.AllowsTakingDamage() {
-		abilities |= protocol.AbilityInvulnerable
-	}
-	if mode.CreativeInventory() {
-		abilities |= protocol.AbilityInstantBuild
-	}
-	if mode.AllowsEditing() {
-		abilities |= protocol.AbilityBuild | protocol.AbilityMine
-	}
-	if mode.AllowsInteraction() {
-		abilities |= protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
 	playerPerm, cmdPerm := byte(packet.PermissionLevelMember), byte(protocol.CommandPermissionLevelAny)
 	if o, ok := c.(interface{ Operator() bool }); ok && o.Operator() {
@@ -626,6 +613,34 @@ func (s *Session) SendAbilities(c Controllable) {
 		CommandPermissions: cmdPerm,
 		Layers:             layers,
 	}})
+}
+
+// gameModeAbilities returns the base ability values advertised to the client.
+// PocketMine-style spectator deliberately differs from native Bedrock spectator:
+// it retains the creative client game type and infinite-resource bit so hotbar
+// controls keep producing requests, while interaction capabilities remain off.
+func gameModeAbilities(mode world.GameMode) uint32 {
+	abilities := uint32(0)
+	if mode.AllowsFlying() {
+		abilities |= protocol.AbilityMayFly
+	}
+	if !mode.AllowsTakingDamage() {
+		abilities |= protocol.AbilityInvulnerable
+	}
+	if mode.CreativeInventory() {
+		abilities |= protocol.AbilityInstantBuild
+	}
+	if mode.AllowsEditing() {
+		abilities |= protocol.AbilityBuild | protocol.AbilityMine
+	}
+	if mode.AllowsInteraction() {
+		abilities |= protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
+	}
+	if id, ok := world.GameModeID(mode); ok && id == 3 {
+		abilities |= protocol.AbilityInstantBuild
+		abilities &^= protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
+	}
+	return abilities
 }
 
 // SendHealth sends the health and max health to the player.

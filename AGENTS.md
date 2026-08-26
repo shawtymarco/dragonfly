@@ -3,6 +3,8 @@
 Fork of `df-mc/dragonfly`. Keep the Go module path `github.com/df-mc/dragonfly`.
 CastleOnline uses this via `replace`. Sync from `df-mc/dragonfly` yourself. Do not add a gophertunnel replace.
 
+All maintained work targets the `main` branch. Do not create or target `master`, `develop`, or release-specific branches.
+
 ## Commits
 
 Match upstream df-mc commit messages. Put the **scope** in the commit message; do not ask the user to confirm each scope.
