@@ -368,8 +368,9 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	c := tx.chunk(chunkPosFromBlockPos(pos))
 
 	rid := w.conf.Blocks.BlockRuntimeID(b)
-	redstoneAfterRelevant := isRedstoneRelevant(b)
-	needOldBlock := !opts.DisableRedstoneUpdates || !redstoneAfterRelevant
+	redstoneEnabled := !w.RedstoneTicksDisabled()
+	redstoneAfterRelevant := redstoneEnabled && isRedstoneRelevant(b)
+	needOldBlock := redstoneEnabled && (!opts.DisableRedstoneUpdates || !redstoneAfterRelevant)
 	needOldRID := needOldBlock || (rid != w.conf.Blocks.AirRuntimeID() && !opts.DisableLiquidDisplacement)
 
 	var oldRID uint32
@@ -432,7 +433,7 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 		}
 	}
 
-	if redstoneAfterRelevant || (needOldBlock && isRedstoneRelevant(oldBlock)) {
+	if redstoneEnabled && (redstoneAfterRelevant || (needOldBlock && isRedstoneRelevant(oldBlock))) {
 		w.redstone.forget(pos)
 	}
 
@@ -443,7 +444,7 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	if !opts.DisableBlockUpdates {
 		w.doBlockUpdatesAround(pos)
 	}
-	if !opts.DisableRedstoneUpdates {
+	if redstoneEnabled && !opts.DisableRedstoneUpdates {
 		w.redstone.invalidateAroundBlockChange(pos, oldBlock, b, RedstoneUpdateCauseBlockUpdate, w.Range())
 	}
 }
@@ -615,7 +616,9 @@ func (tx *Tx) setLiquid(pos cube.Pos, b Liquid) {
 	if b == nil {
 		w.removeLiquids(c, pos)
 		w.doBlockUpdatesAround(pos)
-		w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, w.Range())
+		if !w.RedstoneTicksDisabled() {
+			w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, w.Range())
+		}
 		return
 	}
 	x, y, z := uint8(pos[0]), int16(pos[1]), uint8(pos[2])
@@ -639,7 +642,9 @@ func (tx *Tx) setLiquid(pos cube.Pos, b Liquid) {
 	c.modified = true
 
 	w.doBlockUpdatesAround(pos)
-	w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, w.Range())
+	if !w.RedstoneTicksDisabled() {
+		w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, w.Range())
+	}
 }
 
 // removeLiquids removes any liquid blocks that may be present at a specific
@@ -1108,7 +1113,7 @@ func (w *World) SetDifficulty(d Difficulty) {
 // scheduled if no block update with the same position and block type is
 // already scheduled at a later time than the newly scheduled update.
 func (w *World) scheduleBlockUpdate(pos cube.Pos, b Block, delay time.Duration) {
-	if pos.OutOfBounds(w.Range()) {
+	if pos.OutOfBounds(w.Range()) || (w.RedstoneTicksDisabled() && isRedstoneRelevant(b)) {
 		return
 	}
 	w.scheduledUpdates.schedule(w.conf.Blocks, pos, b, delay)
@@ -1165,8 +1170,8 @@ func (w *World) HopperTicksDisabled() bool {
 	return w == nil || w.conf.DisableHopperTick
 }
 
-// RedstoneTicksDisabled reports whether redstone updates are discarded for this
-// World.
+// RedstoneTicksDisabled reports whether redstone evaluation, invalidation and
+// redstone-specific block ticks are disabled for this World.
 func (w *World) RedstoneTicksDisabled() bool {
 	return w == nil || w.conf.DisableRedstoneTick
 }

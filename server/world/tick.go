@@ -116,8 +116,11 @@ func (t ticker) performNeighbourUpdates(tx *Tx) {
 
 	for _, update := range updates {
 		pos, changedNeighbour := update.pos, update.neighbour
-		if ticker, ok := tx.Block(pos).(NeighbourUpdateTicker); ok {
-			ticker.NeighbourUpdateTick(pos, changedNeighbour, tx)
+		b := tx.Block(pos)
+		if !tx.World().RedstoneTicksDisabled() || !isRedstoneRelevant(b) {
+			if ticker, ok := b.(NeighbourUpdateTicker); ok {
+				ticker.NeighbourUpdateTick(pos, changedNeighbour, tx)
+			}
 		}
 		if liquid, ok := tx.additionalLiquid(pos); ok {
 			if ticker, ok := liquid.(NeighbourUpdateTicker); ok {
@@ -131,6 +134,7 @@ func (t ticker) performNeighbourUpdates(tx *Tx) {
 func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 	var (
 		r             = int32(tx.World().tickRange())
+		randomTicking = tx.World().conf.RandomTickSpeed > 0
 		g             randUint4
 		blockEntities []cube.Pos
 		randomBlocks  []cube.Pos
@@ -159,6 +163,9 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 			continue
 		}
 		blockEntities = append(blockEntities, slices.Collect(maps.Keys(c.BlockEntities))...)
+		if !randomTicking {
+			continue
+		}
 
 		cx, cz := int(pos[0]<<4), int(pos[1]<<4)
 
@@ -326,7 +333,9 @@ func (queue *scheduledTickQueue) tick(tx *Tx, tick int64) {
 		}
 		b := tx.Block(t.pos)
 		if ticker, ok := b.(ScheduledTicker); ok && w.conf.Blocks.BlockHash(b) == t.bhash {
-			ticker.ScheduledTick(t.pos, tx, w.r)
+			if !w.RedstoneTicksDisabled() || !isRedstoneRelevant(b) {
+				ticker.ScheduledTick(t.pos, tx, w.r)
+			}
 		} else if liquid, ok := tx.additionalLiquid(t.pos); ok && w.conf.Blocks.BlockHash(liquid) == t.bhash {
 			if ticker, ok := liquid.(ScheduledTicker); ok {
 				ticker.ScheduledTick(t.pos, tx, w.r)

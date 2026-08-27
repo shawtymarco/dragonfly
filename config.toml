@@ -23,6 +23,10 @@
   # default LevelDB data provider and if false, an empty provider will be used. To use your
   # own provider, turn this value to false, as you will still be able to pass your own provider.
   SaveData = true
+  # Values below zero disable random block ticks. Zero keeps Dragonfly's default of 3.
+  RandomTickSpeed = 0
+  # Disable the redstone pipeline before invalidation, neighbour and scheduled work is queued.
+  DisableRedstoneTick = false
 
 [Players]
   # The maximum amount of players accepted into the server. If set to 0, there is no player limit. The max

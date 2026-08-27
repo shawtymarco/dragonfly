@@ -57,6 +57,56 @@ func TestClampRedstonePower(t *testing.T) {
 	}
 }
 
+func TestDisabledRedstoneSkipsPipelineWork(t *testing.T) {
+	registry := disabledRedstoneTestRegistry()
+	w := Config{Synchronous: true, Blocks: registry, DisableRedstoneTick: true}.New()
+	defer w.Close()
+
+	pos := cube.Pos{8, 64, 8}
+	b := disabledRedstoneTestBlock{}
+	neighbourTicks, scheduledTicks := 0, 0
+	disabledRedstoneNeighbourTicks = &neighbourTicks
+	disabledRedstoneScheduledTicks = &scheduledTicks
+	t.Cleanup(func() {
+		disabledRedstoneNeighbourTicks = nil
+		disabledRedstoneScheduledTicks = nil
+	})
+
+	runWorld(w, func(tx *Tx) {
+		tx.SetBlock(pos, b, nil)
+		if len(w.redstone.dirty) != 0 {
+			t.Fatalf("disabled redstone queued dirty positions: %v", w.redstone.dirty)
+		}
+
+		tx.Redstone().ScheduleUpdate(pos)
+		if len(w.redstone.dirty) != 0 {
+			t.Fatalf("disabled redstone transaction queued dirty positions: %v", w.redstone.dirty)
+		}
+		if power := tx.RedstonePower(pos); power != 0 {
+			t.Fatalf("disabled redstone power = %d, want 0", power)
+		}
+
+		w.updateNeighbour(pos, pos.Side(cube.FaceNorth))
+		ticker{}.performNeighbourUpdates(tx)
+		if neighbourTicks != 0 {
+			t.Fatalf("disabled redstone neighbour ticks = %d, want 0", neighbourTicks)
+		}
+
+		tx.ScheduleBlockUpdate(pos, b, time.Second/20)
+		if ticks := w.scheduledUpdates.fromChunk(chunkPosFromBlockPos(pos)); len(ticks) != 0 {
+			t.Fatalf("disabled redstone queued scheduled ticks: %v", ticks)
+		}
+
+		// Simulate a redstone tick restored from persisted chunk data. It must be
+		// discarded without invoking the block implementation.
+		w.scheduledUpdates.schedule(registry, pos, b, time.Second/20)
+		w.scheduledUpdates.tick(tx, tx.CurrentTick()+1)
+		if scheduledTicks != 0 {
+			t.Fatalf("disabled redstone scheduled ticks = %d, want 0", scheduledTicks)
+		}
+	})
+}
+
 func TestRedstoneStepFace(t *testing.T) {
 	tests := []struct {
 		name string
@@ -713,6 +763,37 @@ func scheduledTickTestRegistry() BlockRegistry {
 	registry := NewBlockRegistry()
 	registry.RegisterBlockState(BlockState{Name: "test:scheduled_tick", Properties: map[string]any{}})
 	registry.RegisterBlock(scheduledTickTestBlock{})
+	return registry
+}
+
+type disabledRedstoneTestBlock struct{}
+
+var (
+	disabledRedstoneNeighbourTicks *int
+	disabledRedstoneScheduledTicks *int
+)
+
+func (disabledRedstoneTestBlock) RedstonePower(cube.Pos, *Tx, cube.Face) int { return 15 }
+func (disabledRedstoneTestBlock) NeighbourUpdateTick(cube.Pos, cube.Pos, *Tx) {
+	if disabledRedstoneNeighbourTicks != nil {
+		(*disabledRedstoneNeighbourTicks)++
+	}
+}
+func (disabledRedstoneTestBlock) ScheduledTick(cube.Pos, *Tx, *rand.Rand) {
+	if disabledRedstoneScheduledTicks != nil {
+		(*disabledRedstoneScheduledTicks)++
+	}
+}
+func (disabledRedstoneTestBlock) EncodeBlock() (string, map[string]any) {
+	return "test:disabled_redstone", nil
+}
+func (disabledRedstoneTestBlock) Hash() (uint64, uint64) { return 1 << 58, 0 }
+func (disabledRedstoneTestBlock) Model() BlockModel      { return nil }
+
+func disabledRedstoneTestRegistry() BlockRegistry {
+	registry := NewBlockRegistry()
+	registry.RegisterBlockState(BlockState{Name: "test:disabled_redstone", Properties: map[string]any{}})
+	registry.RegisterBlock(disabledRedstoneTestBlock{})
 	return registry
 }
 

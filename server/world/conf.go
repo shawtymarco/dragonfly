@@ -94,8 +94,8 @@ type Config struct {
 	// DisableHopperTick, if true, stops hoppers from transferring or collecting
 	// items. Existing hoppers stay in the world.
 	DisableHopperTick bool
-	// DisableRedstoneTick, if true, discards pending redstone updates so wires,
-	// pistons, and other redstone components do not run.
+	// DisableRedstoneTick, if true, prevents redstone invalidation, power
+	// queries, neighbour updates and scheduled ticks from running.
 	DisableRedstoneTick bool
 	// RandomTickFilter, if set, is called before a block's RandomTick. Returning
 	// false skips that tick. Nil allows every random ticker.
