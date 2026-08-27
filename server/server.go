@@ -668,6 +668,7 @@ func (srv *Server) createWorld(dim world.Dimension, nether, end **world.World) *
 		DisableFireTick:     srv.conf.DisableFireTick,
 		DisableHopperTick:   srv.conf.DisableHopperTick,
 		DisableRedstoneTick: srv.conf.DisableRedstoneTick,
+		DisableBlockTicks:   srv.conf.DisableBlockTicks,
 		RandomTickFilter:    srv.conf.RandomTickFilter,
 		PortalDestination: func(dim world.Dimension) *world.World {
 			switch dim {

@@ -146,6 +146,28 @@ func TestSynchronousAdvanceTickTicksViewerlessBlockEntities(t *testing.T) {
 	}
 }
 
+func TestSynchronousAdvanceTickSkipsDisabledBlockTicks(t *testing.T) {
+	w := Config{Synchronous: true, DisableBlockTicks: true}.New()
+	defer w.Close()
+
+	pos := cube.Pos{0, 4, 0}
+	tb := &testTickerBlock{}
+	<-w.exec(func(tx *Tx) {
+		col := tx.chunk(chunkPosFromBlockPos(pos))
+		chest, ok := tx.World().conf.Blocks.BlockByName("minecraft:chest", map[string]any{"minecraft:cardinal_direction": "north"})
+		if !ok {
+			t.Fatal("expected chest block to be registered")
+		}
+		col.SetBlock(uint8(pos[0]), int16(pos[1]), uint8(pos[2]), 0, tx.World().conf.Blocks.BlockRuntimeID(chest))
+		col.BlockEntities[pos] = tb
+	})
+
+	w.AdvanceTick()
+	if tb.ticks != 0 {
+		t.Fatalf("disabled block entity tick count = %d, want 0", tb.ticks)
+	}
+}
+
 type testEntityConfig struct{}
 
 func (testEntityConfig) Apply(*EntityData) {}

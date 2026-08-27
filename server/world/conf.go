@@ -97,6 +97,9 @@ type Config struct {
 	// DisableRedstoneTick, if true, prevents redstone invalidation, power
 	// queries, neighbour updates and scheduled ticks from running.
 	DisableRedstoneTick bool
+	// DisableBlockTicks, if true, skips random block ticks and all
+	// TickerBlock/block-entity ticks.
+	DisableBlockTicks bool
 	// RandomTickFilter, if set, is called before a block's RandomTick. Returning
 	// false skips that tick. Nil allows every random ticker.
 	RandomTickFilter func(Block) bool

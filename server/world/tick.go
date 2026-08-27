@@ -103,7 +103,9 @@ func (t ticker) tick(tx *Tx) {
 
 	t.tickEntities(tx, tick)
 	w.scheduledUpdates.tick(tx, tick)
-	t.tickBlocksRandomly(tx, loaders, tick)
+	if !w.conf.DisableBlockTicks {
+		t.tickBlocksRandomly(tx, loaders, tick)
+	}
 	t.performNeighbourUpdates(tx)
 	w.redstone.tick(tx, tick)
 }

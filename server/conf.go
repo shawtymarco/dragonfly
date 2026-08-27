@@ -148,8 +148,11 @@ type Config struct {
 	// DisableHopperTick, if true, stops hoppers from transferring or collecting
 	// items. Existing hoppers stay in the world.
 	DisableHopperTick bool
-	// DisableRedstoneTick, if true, discards pending redstone updates.
+	// DisableRedstoneTick, if true, prevents redstone invalidation, power
+	// queries, neighbour updates and scheduled ticks from running.
 	DisableRedstoneTick bool
+	// DisableBlockTicks, if true, skips random block ticks and TickerBlock/block-entity ticks.
+	DisableBlockTicks bool
 	// DisableSubChunkRequests, if true, sends complete LevelChunk payloads
 	// instead of asking clients to request individual sub-chunks.
 	DisableSubChunkRequests bool
@@ -308,8 +311,11 @@ type UserConfig struct {
 		DisableFireTick bool
 		// DisableHopperTick stops hoppers transferring or collecting items.
 		DisableHopperTick bool
-		// DisableRedstoneTick discards pending redstone updates.
+		// DisableRedstoneTick prevents redstone invalidation, power queries,
+		// neighbour updates and scheduled ticks from running.
 		DisableRedstoneTick bool
+		// DisableBlockTicks skips random block ticks and TickerBlock/block-entity ticks.
+		DisableBlockTicks bool
 		// DisableSubChunkRequests sends complete chunks and ignores the optional
 		// client-driven sub-chunk request mode.
 		DisableSubChunkRequests bool
@@ -370,6 +376,7 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		DisableFireTick:         uc.World.DisableFireTick,
 		DisableHopperTick:       uc.World.DisableHopperTick,
 		DisableRedstoneTick:     uc.World.DisableRedstoneTick,
+		DisableBlockTicks:       uc.World.DisableBlockTicks,
 		DisableSubChunkRequests: uc.World.DisableSubChunkRequests,
 		RandomTickSpeed:         uc.World.RandomTickSpeed,
 		DisableVanillaRecipes:   uc.World.DisableVanillaRecipes,
