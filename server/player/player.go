@@ -1541,13 +1541,15 @@ func (p *Player) SetGameMode(mode world.GameMode) {
 		// Apply the state directly so the final game-mode sync is the only packet
 		// sequence emitted for this transition.
 		p.flying = false
-	} else if id, ok := world.GameModeID(mode); ok && id == 3 {
-		// PocketMine establishes forced flight and clears on-ground before syncing
-		// spectator abilities. Sending the old state first leaves Bedrock waiting
-		// for a client flight toggle before noclip actually becomes usable.
+	} else if !mode.HasCollision() {
+		// PocketMine publishes forced flight and noclip before its position reset,
+		// then publishes the final game type and abilities. Bedrock otherwise sees
+		// a collision-free player that is still falling until it toggles flight.
 		p.flying = true
 		p.onGround = false
 		p.ResetFallDistance()
+		p.session().SendAbilities(p)
+		p.session().ViewEntityTeleport(p, p.Position())
 	}
 	if !mode.Visible() {
 		p.SetInvisible()

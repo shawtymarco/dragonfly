@@ -569,7 +569,8 @@ func (s *Session) SendGameMode(c Controllable) {
 	s.SendAbilities(c)
 }
 
-// SendAbilities sends the abilities of the Controllable entity of the session to the client.
+// SendAbilities sends the current abilities of the Controllable entity to the client. Position and flight-state
+// transitions are owned by player.SetGameMode so callers that merely refresh permissions cannot reorder movement.
 func (s *Session) SendAbilities(c Controllable) {
 	mode, abilities := c.GameMode(), gameModeAbilities(c.GameMode())
 	if mode.AllowsFlying() {
@@ -579,12 +580,6 @@ func (s *Session) SendAbilities(c Controllable) {
 	}
 	if !mode.HasCollision() {
 		abilities |= protocol.AbilityNoClip
-		if id, ok := world.GameModeID(mode); !ok || id != 3 {
-			// Preserve the native spectator transition. PocketMine-style spectator
-			// establishes this state in Player.SetGameMode before the first sync.
-			defer c.StartFlying()
-		}
-		s.ViewEntityTeleport(c, c.Position())
 	}
 	playerPerm, cmdPerm := byte(packet.PermissionLevelMember), byte(protocol.CommandPermissionLevelAny)
 	if o, ok := c.(interface{ Operator() bool }); ok && o.Operator() {
