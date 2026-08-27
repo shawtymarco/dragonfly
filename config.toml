@@ -28,6 +28,7 @@
   DisableEnd = false
   DisableFireTick = false
   DisableHopperTick = false
+  # Disable the redstone pipeline before invalidation, neighbour and scheduled work is queued.
   DisableRedstoneTick = false
   DisableSubChunkRequests = false
   # Values below zero disable random ticks. Zero keeps Dragonfly's default of 3.
