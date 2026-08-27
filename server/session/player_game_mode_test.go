@@ -37,3 +37,25 @@ func TestNativeSpectatorPresentationUnchanged(t *testing.T) {
 		t.Fatalf("native spectator abilities = %#x, instant build unexpectedly enabled", abilities)
 	}
 }
+
+func TestPostDimensionForcedFlightResyncPolicy(t *testing.T) {
+	tests := []struct {
+		name string
+		mode world.GameMode
+		want bool
+	}{
+		{name: "survival", mode: world.GameModeSurvival},
+		{name: "creative", mode: world.GameModeCreative},
+		{name: "adventure", mode: world.GameModeAdventure},
+		{name: "faux spectator", mode: world.GameModeSpectator, want: true},
+		{name: "native spectator", mode: world.GameModeNativeSpectator, want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := requiresPostDimensionFlightResync(test.mode)
+			if got != test.want {
+				t.Fatalf("post-dimension resync = %t, want %t", got, test.want)
+			}
+		})
+	}
+}

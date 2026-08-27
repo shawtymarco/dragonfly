@@ -3152,6 +3152,12 @@ func (p *Player) SetScale(s float64) {
 
 // OnGround checks if the player is considered to be on the ground.
 func (p *Player) OnGround() bool {
+	// Forced-flight modes must never publish an on-ground state. The client
+	// otherwise drops its spectator flight state after a position or dimension
+	// reset and falls through the collision-free world until it toggles flight.
+	if !p.GameMode().HasCollision() {
+		return false
+	}
 	if p.session() == session.Nop {
 		return p.mc.OnGround()
 	}

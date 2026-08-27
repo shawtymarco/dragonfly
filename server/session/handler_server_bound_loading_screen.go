@@ -2,9 +2,10 @@ package session
 
 import (
 	"fmt"
+	"sync/atomic"
+
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
-	"sync/atomic"
 )
 
 // ServerBoundLoadingScreenHandler handles loading screen updates from the clients. It is used to ensure that
@@ -15,7 +16,7 @@ type ServerBoundLoadingScreenHandler struct {
 }
 
 // Handle ...
-func (h *ServerBoundLoadingScreenHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, _ Controllable) error {
+func (h *ServerBoundLoadingScreenHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, c Controllable) error {
 	pk := p.(*packet.ServerBoundLoadingScreen)
 	v, ok := pk.LoadingScreenID.Value()
 	expected := h.expectedID.Load()
@@ -28,6 +29,7 @@ func (h *ServerBoundLoadingScreenHandler) Handle(p packet.Packet, s *Session, _ 
 	case pk.Type == packet.LoadingScreenTypeEnd:
 		s.changingDimension.Store(false)
 		h.expectedID.Store(0)
+		resyncForcedFlightAfterDimension(c)
 	}
 
 	return nil
