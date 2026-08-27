@@ -42,13 +42,24 @@ type BlockRuntimeIDMapper interface {
 	MapBlockRuntimeID(runtimeID uint32) (mapped uint32, ok bool)
 }
 
+// BiomePaletteReuseController controls whether equal consecutive biome
+// palettes may use the network reuse marker. Older clients predate this
+// marker and interpret it as an invalid palette header.
+type BiomePaletteReuseController interface {
+	ReuseBiomePalettes() bool
+}
+
 // NetworkEncodingWithBlockMapper returns a network encoding that maps block
 // palettes before packing them. Biome palettes remain unchanged.
 func NetworkEncodingWithBlockMapper(mapper BlockRuntimeIDMapper) Encoding {
 	if mapper == nil {
 		return NetworkEncoding
 	}
-	return mappedNetworkEncoding{mapper: mapper}
+	reuseBiomePalettes := true
+	if controller, ok := mapper.(BiomePaletteReuseController); ok {
+		reuseBiomePalettes = controller.ReuseBiomePalettes()
+	}
+	return mappedNetworkEncoding{mapper: mapper, reuseBiomePalettes: reuseBiomePalettes}
 }
 
 // biomePaletteEncoding implements the encoding of biome palettes to disk.
@@ -199,7 +210,8 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 }
 
 type mappedNetworkEncoding struct {
-	mapper BlockRuntimeIDMapper
+	mapper             BlockRuntimeIDMapper
+	reuseBiomePalettes bool
 }
 
 func (mappedNetworkEncoding) network() byte { return 1 }
@@ -215,4 +227,8 @@ func (encoding mappedNetworkEncoding) mapStorage(storage *PalettedStorage, palet
 		return storage
 	}
 	return remapPalettedStorage(storage, encoding.mapper)
+}
+
+func (encoding mappedNetworkEncoding) canReuseBiomePalettes() bool {
+	return encoding.reuseBiomePalettes
 }

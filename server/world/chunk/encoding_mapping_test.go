@@ -15,6 +15,12 @@ func (m testRuntimeIDMapper) MapBlockRuntimeID(runtimeID uint32) (uint32, bool) 
 	return mapped, ok
 }
 
+type legacyTestRuntimeIDMapper struct {
+	testRuntimeIDMapper
+}
+
+func (legacyTestRuntimeIDMapper) ReuseBiomePalettes() bool { return false }
+
 func TestRemapPalettedStorageDeduplicatesAndRepackages(t *testing.T) {
 	original := emptyStorage(10)
 	original.Set(0, 0, 0, 11)
@@ -63,6 +69,27 @@ func TestMappedEncodingRunsBeforeCacheHash(t *testing.T) {
 	}
 	if got := column.Block(0, 0, 0, 0); got != 10 {
 		t.Fatalf("mapped encoding mutated live chunk: got %d, want 10", got)
+	}
+}
+
+func TestMappedEncodingCanDisableBiomePaletteReuse(t *testing.T) {
+	column := New(mappingTestBlockRegistry{}, cube.Range{0, 31})
+	biomes := emptyStorage(1)
+	biomes.Set(0, 0, 0, 2)
+	column.biomes[0] = biomes
+	column.biomes[1] = biomes.Clone()
+
+	native := EncodeBiomes(column, NetworkEncoding)
+	if got := native[len(native)-1]; got != 0xff {
+		t.Fatalf("native biome reuse marker: got %#x, want 0xff", got)
+	}
+
+	legacy := EncodeBiomes(column, NetworkEncodingWithBlockMapper(legacyTestRuntimeIDMapper{}))
+	if got, want := len(legacy), 2*(len(native)-1); got != want {
+		t.Fatalf("legacy biome length: got %d, want %d", got, want)
+	}
+	if !bytes.Equal(legacy[:len(legacy)/2], legacy[len(legacy)/2:]) {
+		t.Fatalf("legacy biomes did not encode both equal palettes: %v", legacy)
 	}
 }
 

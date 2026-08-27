@@ -83,8 +83,16 @@ func EncodeBiomes(c *Chunk, e Encoding) []byte {
 	}()
 
 	var previous *PalettedStorage
+	reuse := true
+	if controller, ok := e.(interface{ canReuseBiomePalettes() bool }); ok {
+		reuse = controller.canReuseBiomePalettes()
+	}
 	for _, b := range c.biomes {
-		encodePalettedStorage(buf, b, previous, e, BiomePaletteEncoding)
+		var reusable *PalettedStorage
+		if reuse {
+			reusable = previous
+		}
+		encodePalettedStorage(buf, b, reusable, e, BiomePaletteEncoding)
 		previous = b
 	}
 	biomes := make([]byte, buf.Len())
