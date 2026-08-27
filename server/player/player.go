@@ -648,6 +648,7 @@ func (p *Player) blocksUnder() (low, high cube.Pos) {
 // kind of damage.
 func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 	if _, ok := p.Effect(effect.FireResistance); (ok && src.Fire()) || p.Dead() || !p.GameMode().AllowsTakingDamage() || dmg < 0 {
+		rejectPacketTraceDamage(src, session.PacketTraceReasonInvulnerable)
 		return 0, false
 	}
 	totalDamage := p.FinalDamageFrom(dmg, src)
@@ -656,6 +657,7 @@ func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 	immune := time.Now().Before(p.immuneUntil)
 	if immune {
 		if damageLeft -= p.lastDamage; damageLeft <= 0 {
+			rejectPacketTraceDamage(src, session.PacketTraceReasonCooldown)
 			return 0, false
 		}
 	}
@@ -663,6 +665,15 @@ func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 	immunity := time.Second / 2
 	ctx := NewEventContext(p.tx, p)
 	if p.Handler().HandleHurt(ctx, &damageLeft, immune, &immunity, src); ctx.Cancelled() {
+		if ctx.CancelReason() == session.PacketTraceReasonAccepted {
+			acceptPacketTraceDamage(src)
+		} else {
+			reason := ctx.CancelReason()
+			if reason == "" {
+				reason = session.PacketTraceReasonHandler
+			}
+			rejectPacketTraceDamage(src, reason)
+		}
 		return 0, false
 	}
 	p.setAttackImmunity(immunity, totalDamage)
@@ -724,6 +735,27 @@ func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 		p.kill(src)
 	}
 	return totalDamage, true
+}
+
+func packetTraceDamageSource(src world.DamageSource) (*Player, uint64, bool) {
+	attack, ok := src.(entity.AttackDamageSource)
+	if !ok || attack.PacketTraceID == 0 {
+		return nil, 0, false
+	}
+	attacker, ok := attack.Attacker.(*Player)
+	return attacker, attack.PacketTraceID, ok
+}
+
+func rejectPacketTraceDamage(src world.DamageSource, reason string) {
+	if attacker, id, ok := packetTraceDamageSource(src); ok {
+		attacker.session().RejectPacketTrace(id, reason)
+	}
+}
+
+func acceptPacketTraceDamage(src world.DamageSource) {
+	if attacker, id, ok := packetTraceDamageSource(src); ok {
+		attacker.session().MarkPacketTraceAccepted(id)
+	}
 }
 
 // applyTotemEffects is an unexported function that is used to handle totem effects.
@@ -1884,12 +1916,24 @@ func (p *Player) UseItemOnEntity(e world.Entity) bool {
 // have.
 // If the player cannot reach the entity at its position, the method returns immediately.
 func (p *Player) AttackEntity(e world.Entity) bool {
+	trace, traced := p.session().CurrentPacketTrace()
+	_, playerTarget := e.(*Player)
+	if traced && !playerTarget {
+		p.session().RejectPacketTrace(trace.ID, session.PacketTraceReasonNonPlayer)
+		traced = false
+	}
 	if !p.canReach(e.Position()) {
+		if traced {
+			p.session().RejectPacketTrace(trace.ID, session.PacketTraceReasonUnreachable)
+		}
 		return false
 	}
 
 	living, isLiving := e.(entity.Living)
 	if isLiving && living.Dead() {
+		if traced {
+			p.session().RejectPacketTrace(trace.ID, session.PacketTraceReasonInvulnerable)
+		}
 		return false
 	}
 
@@ -1909,6 +1953,13 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 
 	ctx := NewEventContext(p.tx, p)
 	if p.Handler().HandleAttackEntity(ctx, e, &force, &height, &critical); ctx.Cancelled() {
+		if traced {
+			reason := ctx.CancelReason()
+			if reason == "" {
+				reason = session.PacketTraceReasonHandler
+			}
+			p.session().RejectPacketTrace(trace.ID, reason)
+		}
 		return false
 	}
 	p.SwingArm()
@@ -1946,7 +1997,11 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 		dmg *= 1.5
 	}
 
-	n, vulnerable := living.Hurt(dmg, entity.AttackDamageSource{Attacker: p})
+	damageSource := entity.AttackDamageSource{Attacker: p}
+	if traced {
+		damageSource.PacketTraceID = trace.ID
+	}
+	n, vulnerable := living.Hurt(dmg, damageSource)
 	i, left := p.HeldItems()
 
 	if durable, ok := i.Item().(item.Durable); ok {
@@ -1955,6 +2010,13 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 
 	p.tx.PlaySound(entity.EyePosition(e), sound.Attack{Damage: !mgl64.FloatEqual(n, 0)})
 	if !vulnerable {
+		if traced && !p.session().PacketTraceFinished(trace.ID) {
+			if p.session().PacketTraceAccepted(trace.ID) {
+				p.session().FinishPacketTraceAccepted(trace.ID)
+			} else {
+				p.session().RejectPacketTrace(trace.ID, session.PacketTraceReasonInvulnerable)
+			}
+		}
 		return true
 	}
 	if critical {
@@ -1966,11 +2028,19 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 	p.Exhaust(0.1)
 
 	living.KnockBack(p.Position(), force, height)
+	if traced {
+		if victim, ok := e.(*Player); ok && (force != 0 || height != 0) {
+			victim.session().QueuePacketTraceFeedback(trace.ID, session.PacketTraceRoleVictim)
+		}
+	}
 
 	if f, ok := i.Enchantment(enchantment.FireAspect); ok {
 		if flammable, ok := living.(entity.Flammable); ok {
 			flammable.SetOnFire(enchantment.FireAspect.Duration(f.Level()))
 		}
+	}
+	if traced {
+		p.session().FinishPacketTraceAccepted(trace.ID)
 	}
 	return true
 }
@@ -3510,6 +3580,12 @@ func (p *Player) session() *session.Session {
 		return s
 	}
 	return session.Nop
+}
+
+// QueuePacketTraceFeedback queues an internal feedback barrier on the player's
+// ordered session writer. It is a no-op for players without a network session.
+func (p *Player) QueuePacketTraceFeedback(id uint64, role uint8) {
+	p.session().QueuePacketTraceFeedback(id, role)
 }
 
 // useContext returns an item.UseContext initialised for a Player.

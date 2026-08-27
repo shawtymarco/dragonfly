@@ -37,10 +37,11 @@ type Session struct {
 	conf           Config
 	once, connOnce sync.Once
 
-	ent      *world.EntityHandle
-	conn     Conn
-	handlers map[uint32]packetHandler
-	packets  chan packet.Packet
+	ent         *world.EntityHandle
+	conn        Conn
+	handlers    map[uint32]packetHandler
+	packets     chan outboundMessage
+	packetTrace packetTraceTracker
 
 	currentScoreboard atomic.Pointer[string]
 	currentLines      atomic.Pointer[[]string]
@@ -120,6 +121,11 @@ type Session struct {
 type debugShapeUpdate struct {
 	id    int
 	shape debug.Shape
+}
+
+type outboundMessage struct {
+	packet      packet.Packet
+	traceResult *PacketTraceResult
 }
 
 // Conn represents a connection that packets are read from and written to by a Session. In addition, it holds some
@@ -205,7 +211,7 @@ func (conf Config) New(conn Conn) *Session {
 		openChunkTransactions:  make([]map[uint64]struct{}, 0, 8),
 		closeBackground:        make(chan struct{}),
 		handlers:               map[uint32]packetHandler{},
-		packets:                make(chan packet.Packet, 256),
+		packets:                make(chan outboundMessage, 256),
 		entityRuntimeIDs:       map[*world.EntityHandle]uint64{},
 		entities:               map[uint64]*world.EntityHandle{},
 		hiddenEntities:         map[uuid.UUID]struct{}{},
@@ -252,8 +258,16 @@ func (conf Config) New(conn Conn) *Session {
 			select {
 			case <-s.closeBackground:
 				return
-			case pk := <-s.packets:
-				_ = conn.WritePacket(pk)
+			case message := <-s.packets:
+				if message.packet != nil {
+					_ = conn.WritePacket(message.packet)
+					continue
+				}
+				if message.traceResult != nil {
+					if traced, ok := conn.(PacketTraceConn); ok {
+						_ = traced.WritePacketTraceResult(*message.traceResult)
+					}
+				}
 			}
 		}
 	}()
@@ -429,7 +443,15 @@ func (s *Session) handlePackets() {
 		if err != nil {
 			return
 		}
+		var trace PacketTrace
+		if traced, ok := s.conn.(PacketTraceConn); ok {
+			trace, _ = traced.ConsumePacketTrace()
+		}
 		err = s.withControllable(context.Background(), func(tx *world.Tx, c Controllable) error {
+			if trace.ID != 0 {
+				s.beginPacketTrace(trace, time.Now())
+				defer s.endPacketTrace()
+			}
 			return s.handlePacket(pk, tx, c)
 		})
 		if err != nil {
@@ -641,7 +663,17 @@ func (s *Session) writePacket(pk packet.Packet) {
 		return
 	}
 	select {
-	case s.packets <- pk:
+	case s.packets <- outboundMessage{packet: pk}:
+	case <-s.closeBackground:
+	}
+}
+
+func (s *Session) queuePacketTraceResult(result PacketTraceResult) {
+	if s == Nop {
+		return
+	}
+	select {
+	case s.packets <- outboundMessage{traceResult: &result}:
 	case <-s.closeBackground:
 	}
 }

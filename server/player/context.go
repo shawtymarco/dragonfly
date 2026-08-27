@@ -9,7 +9,8 @@ import (
 // adds the Player the event concerns. It is valid only during the callback.
 type Context struct {
 	*world.Context
-	p *Player
+	p            *Player
+	cancelReason string
 }
 
 // NewEventContext returns a fresh event context for p.
@@ -25,6 +26,17 @@ func NewEventContext(tx *world.Tx, p *Player) *Context {
 // Player returns the player the event concerns, valid only during the
 // callback.
 func (ctx *Context) Player() *Player { return ctx.p }
+
+// CancelWithReason cancels the event and attaches a stable machine-readable
+// reason for diagnostics. The reason is not sent to the player.
+func (ctx *Context) CancelWithReason(reason string) {
+	ctx.cancelReason = reason
+	ctx.Cancel()
+}
+
+// CancelReason returns the reason attached using CancelWithReason. It is empty
+// when the event was cancelled through Cancel directly.
+func (ctx *Context) CancelReason() string { return ctx.cancelReason }
 
 // Defer schedules f to run on the owner after the current callback completes,
 // with the player re-resolved for that moment. The task fails with

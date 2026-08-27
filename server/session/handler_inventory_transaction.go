@@ -19,6 +19,7 @@ type InventoryTransactionHandler struct{}
 // Handle ...
 func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *world.Tx, c Controllable) (err error) {
 	pk := p.(*packet.InventoryTransaction)
+	trace, traced := s.CurrentPacketTrace()
 
 	if len(pk.LegacySetItemSlots) > 2 {
 		return fmt.Errorf("too many slot sync requests in inventory transaction")
@@ -60,6 +61,9 @@ func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *wo
 		return
 	case *protocol.UseItemOnEntityTransactionData:
 		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
+			if traced {
+				s.RejectPacketTrace(trace.ID, PacketTraceReasonHeldItem)
+			}
 			return
 		}
 		return h.handleUseItemOnEntityTransaction(data, s, tx, c)
@@ -144,6 +148,9 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 	defer s.swingingArm.Store(false)
 
 	if data.TargetEntityRuntimeID == selfEntityRuntimeID {
+		if trace, ok := s.CurrentPacketTrace(); ok {
+			s.RejectPacketTrace(trace.ID, PacketTraceReasonSelfTarget)
+		}
 		return fmt.Errorf("invalid entity interaction: players cannot interact with themselves")
 	}
 
@@ -152,11 +159,17 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 		// In some cases, for example when a falling block entity solidifies, latency may allow attacking an entity that
 		// no longer exists server side. This is expected, so we shouldn't kick the player.
 		s.conf.Log.Debug("invalid entity interaction: no entity with runtime ID", "ID", data.TargetEntityRuntimeID)
+		if trace, traced := s.CurrentPacketTrace(); traced {
+			s.RejectPacketTrace(trace.ID, PacketTraceReasonTargetMissing)
+		}
 		return nil
 	}
 	e, ok := handle.Entity(tx)
 	if !ok {
 		s.conf.Log.Debug("invalid entity interaction: entity is not in the same world (anymore)", "ID", data.TargetEntityRuntimeID)
+		if trace, traced := s.CurrentPacketTrace(); traced {
+			s.RejectPacketTrace(trace.ID, PacketTraceReasonTargetWorld)
+		}
 		return nil
 	}
 	var valid bool
@@ -172,6 +185,13 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 		slot := int(*s.heldSlot)
 		it, _ := s.inv.Item(slot)
 		s.sendItem(it, slot, protocol.WindowIDInventory)
+	}
+	if trace, traced := s.CurrentPacketTrace(); traced && !s.PacketTraceFinished(trace.ID) {
+		if valid {
+			s.FinishPacketTraceAccepted(trace.ID)
+		} else {
+			s.RejectPacketTrace(trace.ID, PacketTraceReasonHandler)
+		}
 	}
 	return nil
 }

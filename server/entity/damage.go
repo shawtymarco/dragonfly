@@ -13,6 +13,10 @@ type (
 		// Attacker holds the attacking entity. The entity may be a player or
 		// any other entity.
 		Attacker world.Entity
+		// PacketTraceID ties player-originated melee damage to optional internal
+		// transport diagnostics. It is zero for untraced attacks and is never
+		// encoded into a Bedrock packet.
+		PacketTraceID uint64
 	}
 
 	// VoidDamageSource is used for damage caused by an entity being in the
