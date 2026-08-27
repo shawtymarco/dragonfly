@@ -646,6 +646,13 @@ func (s *Session) writePacket(pk packet.Packet) {
 	}
 }
 
+// WritePacket queues pk on the ordered session writer. Listener-specific
+// control packets use this boundary when their order relative to gameplay
+// packets is part of the protocol contract.
+func (s *Session) WritePacket(pk packet.Packet) {
+	s.writePacket(pk)
+}
+
 // actorIdentifier represents the structure of an actor identifier sent over the network.
 type actorIdentifier struct {
 	// ID is a unique namespaced identifier for the entity.

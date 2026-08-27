@@ -67,15 +67,6 @@ func GameModeID(mode GameMode) (int, bool) {
 	return gameModeReg.LookupID(mode)
 }
 
-// AllowsFlightToggle reports whether a client may change its own flying state in mode. Custom game modes that do not
-// expose this optional policy retain the historical behaviour of using AllowsFlying as the toggle permission.
-func AllowsFlightToggle(mode GameMode) bool {
-	if toggleMode, ok := mode.(interface{ AllowsFlightToggle() bool }); ok {
-		return toggleMode.AllowsFlightToggle()
-	}
-	return mode.AllowsFlying()
-}
-
 type gameModeRegistry struct {
 	gameModes map[int]GameMode
 	ids       map[GameMode]int
@@ -118,7 +109,6 @@ func (survival) AllowsTakingDamage() bool  { return true }
 func (survival) CreativeInventory() bool   { return false }
 func (survival) HasCollision() bool        { return true }
 func (survival) AllowsFlying() bool        { return false }
-func (survival) AllowsFlightToggle() bool  { return false }
 func (survival) AllowsInteraction() bool   { return true }
 func (survival) Visible() bool             { return true }
 func (survival) InstantPortalTravel() bool { return false }
@@ -132,7 +122,6 @@ func (creative) AllowsTakingDamage() bool  { return false }
 func (creative) CreativeInventory() bool   { return true }
 func (creative) HasCollision() bool        { return true }
 func (creative) AllowsFlying() bool        { return true }
-func (creative) AllowsFlightToggle() bool  { return true }
 func (creative) AllowsInteraction() bool   { return true }
 func (creative) Visible() bool             { return true }
 func (creative) InstantPortalTravel() bool { return true }
@@ -146,7 +135,6 @@ func (adventure) AllowsTakingDamage() bool  { return true }
 func (adventure) CreativeInventory() bool   { return false }
 func (adventure) HasCollision() bool        { return true }
 func (adventure) AllowsFlying() bool        { return false }
-func (adventure) AllowsFlightToggle() bool  { return false }
 func (adventure) AllowsInteraction() bool   { return true }
 func (adventure) Visible() bool             { return true }
 func (adventure) InstantPortalTravel() bool { return false }
@@ -160,7 +148,6 @@ func (spectator) AllowsTakingDamage() bool  { return false }
 func (spectator) CreativeInventory() bool   { return false }
 func (spectator) HasCollision() bool        { return false }
 func (spectator) AllowsFlying() bool        { return true }
-func (spectator) AllowsFlightToggle() bool  { return false }
 func (spectator) AllowsInteraction() bool   { return true }
 func (spectator) Visible() bool             { return false }
 func (spectator) InstantPortalTravel() bool { return false }
@@ -174,7 +161,6 @@ func (nativeSpectator) AllowsTakingDamage() bool  { return false }
 func (nativeSpectator) CreativeInventory() bool   { return false }
 func (nativeSpectator) HasCollision() bool        { return false }
 func (nativeSpectator) AllowsFlying() bool        { return true }
-func (nativeSpectator) AllowsFlightToggle() bool  { return false }
 func (nativeSpectator) AllowsInteraction() bool   { return false }
 func (nativeSpectator) Visible() bool             { return false }
 func (nativeSpectator) InstantPortalTravel() bool { return false }

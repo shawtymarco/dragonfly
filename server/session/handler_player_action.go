@@ -25,16 +25,8 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 		return errSelfRuntimeID
 	}
 	switch action {
-	case protocol.PlayerActionStartSleeping, protocol.PlayerActionRespawn:
+	case protocol.PlayerActionStartSleeping, protocol.PlayerActionRespawn, protocol.PlayerActionDimensionChangeDone:
 		// Don't do anything for these actions.
-	case protocol.PlayerActionDimensionChangeDone:
-		// Completing a dimension transition resets the client's local flight
-		// state. This is observable after proxy fast transfers in faux/native
-		// spectator: collision is already disabled, but the client falls until
-		// it toggles flight itself. Reapply the authoritative mode at the client
-		// acknowledgement boundary so forced flight and noclip are restored
-		// after the reset rather than racing it with a timer.
-		resyncForcedFlightAfterDimension(c)
 	case protocol.PlayerActionStopSleeping:
 		c.Wake()
 	case protocol.PlayerActionStartBreak, protocol.PlayerActionContinueDestroyBlock:
@@ -68,18 +60,4 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 		return fmt.Errorf("unhandled ActionType %v", action)
 	}
 	return nil
-}
-
-// resyncForcedFlightAfterDimension republishes modes that require flight and
-// noclip to remain continuously enabled. Ordinary creative flight is excluded
-// because the player owns that toggle.
-func resyncForcedFlightAfterDimension(c Controllable) {
-	mode := c.GameMode()
-	if requiresPostDimensionFlightResync(mode) {
-		c.SetGameMode(mode)
-	}
-}
-
-func requiresPostDimensionFlightResync(mode world.GameMode) bool {
-	return mode.AllowsFlying() && !mode.HasCollision()
 }

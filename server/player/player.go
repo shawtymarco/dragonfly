@@ -38,6 +38,7 @@ import (
 	"github.com/df-mc/dragonfly/server/world/sound"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
+	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"golang.org/x/text/language"
 )
 
@@ -391,6 +392,13 @@ func (p *Player) Transfer(address string) error {
 	}
 	p.session().Transfer(addr.IP, addr.Port)
 	return nil
+}
+
+// SendPacket queues a packet on the player's ordered session writer. It is
+// intended for generic listener control frames that must remain ordered with
+// the gameplay state emitted by Player methods.
+func (p *Player) SendPacket(pk packet.Packet) {
+	p.session().WritePacket(pk)
 }
 
 // SendCommandOutput sends the output of a command to the player.
@@ -1538,18 +1546,7 @@ func (p *Player) SetGameMode(mode world.GameMode) {
 	p.gameMode = mode
 
 	if !mode.AllowsFlying() {
-		// Apply the state directly so the final game-mode sync is the only packet
-		// sequence emitted for this transition.
-		p.flying = false
-	} else if !mode.HasCollision() {
-		// PocketMine publishes forced flight and noclip before its position reset,
-		// then publishes the final game type and abilities. Bedrock otherwise sees
-		// a collision-free player that is still falling until it toggles flight.
-		p.flying = true
-		p.onGround = false
-		p.ResetFallDistance()
-		p.session().SendAbilities(p)
-		p.session().ViewEntityTeleport(p, p.Position())
+		p.StopFlying()
 	}
 	if !mode.Visible() {
 		p.SetInvisible()
@@ -3152,12 +3149,6 @@ func (p *Player) SetScale(s float64) {
 
 // OnGround checks if the player is considered to be on the ground.
 func (p *Player) OnGround() bool {
-	// Forced-flight modes must never publish an on-ground state. The client
-	// otherwise drops its spectator flight state after a position or dimension
-	// reset and falls through the collision-free world until it toggles flight.
-	if !p.GameMode().HasCollision() {
-		return false
-	}
 	if p.session() == session.Nop {
 		return p.mc.OnGround()
 	}

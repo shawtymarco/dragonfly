@@ -16,7 +16,7 @@ type ServerBoundLoadingScreenHandler struct {
 }
 
 // Handle ...
-func (h *ServerBoundLoadingScreenHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, c Controllable) error {
+func (h *ServerBoundLoadingScreenHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, _ Controllable) error {
 	pk := p.(*packet.ServerBoundLoadingScreen)
 	v, ok := pk.LoadingScreenID.Value()
 	expected := h.expectedID.Load()
@@ -29,7 +29,6 @@ func (h *ServerBoundLoadingScreenHandler) Handle(p packet.Packet, s *Session, _ 
 	case pk.Type == packet.LoadingScreenTypeEnd:
 		s.changingDimension.Store(false)
 		h.expectedID.Store(0)
-		resyncForcedFlightAfterDimension(c)
 	}
 
 	return nil

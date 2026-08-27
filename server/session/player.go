@@ -569,8 +569,7 @@ func (s *Session) SendGameMode(c Controllable) {
 	s.SendAbilities(c)
 }
 
-// SendAbilities sends the current abilities of the Controllable entity to the client. Position and flight-state
-// transitions are owned by player.SetGameMode so callers that merely refresh permissions cannot reorder movement.
+// SendAbilities sends the abilities of the Controllable entity of the session to the client.
 func (s *Session) SendAbilities(c Controllable) {
 	mode, abilities := c.GameMode(), gameModeAbilities(c.GameMode())
 	if mode.AllowsFlying() {
@@ -580,6 +579,10 @@ func (s *Session) SendAbilities(c Controllable) {
 	}
 	if !mode.HasCollision() {
 		abilities |= protocol.AbilityNoClip
+		defer c.StartFlying()
+		// If the client is currently on the ground and turned to spectator mode, it will be unable to sprint during
+		// flight. In order to allow this, we force the client to be flying through a MovePlayer packet.
+		s.ViewEntityTeleport(c, c.Position())
 	}
 	playerPerm, cmdPerm := byte(packet.PermissionLevelMember), byte(protocol.CommandPermissionLevelAny)
 	if o, ok := c.(interface{ Operator() bool }); ok && o.Operator() {
@@ -634,10 +637,7 @@ func gameModeAbilities(mode world.GameMode) uint32 {
 		abilities |= protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
 	if id, ok := world.GameModeID(mode); ok && id == 3 {
-		// Faux spectator is forced into flight before the packet is emitted. Keep
-		// the required base values explicit as well as the spectator override
-		// layer so the client never observes a toggleable intermediate state.
-		abilities |= protocol.AbilityInstantBuild | protocol.AbilityFlying | protocol.AbilityNoClip
+		abilities |= protocol.AbilityInstantBuild
 		abilities &^= protocol.AbilityMayFly | protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
 	return abilities
