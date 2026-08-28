@@ -2028,11 +2028,12 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 	p.Exhaust(0.1)
 
 	knockBackCtx := NewEventContext(p.tx, p)
-	if !handleAttackKnockBack(p.Handler(), knockBackCtx, living, force, height) {
+	knockBackReplaced := handleAttackKnockBack(p.Handler(), knockBackCtx, living, force, height)
+	if !knockBackReplaced {
 		living.KnockBack(p.Position(), force, height)
 	}
 	if traced {
-		if victim, ok := e.(*Player); ok && (force != 0 || height != 0) {
+		if victim, ok := e.(*Player); ok && (knockBackReplaced || force != 0 || height != 0) {
 			victim.session().QueuePacketTraceFeedback(trace.ID, session.PacketTraceRoleVictim)
 		}
 	}
