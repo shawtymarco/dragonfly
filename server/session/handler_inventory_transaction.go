@@ -9,6 +9,7 @@ import (
 	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/item/inventory"
 	"github.com/df-mc/dragonfly/server/world"
+	"github.com/go-gl/mathgl/mgl64"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
@@ -177,6 +178,22 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 	case protocol.UseItemOnEntityActionInteract:
 		valid = c.UseItemOnEntity(e)
 	case protocol.UseItemOnEntityActionAttack:
+		s.beginAttackMetadata(AttackMetadata{
+			TargetRuntimeID: data.TargetEntityRuntimeID,
+			HotBarSlot:      data.HotBarSlot,
+			Position: mgl64.Vec3{
+				float64(data.Position[0]),
+				float64(data.Position[1]),
+				float64(data.Position[2]),
+			},
+			ClickedPosition: mgl64.Vec3{
+				float64(data.ClickedPosition[0]),
+				float64(data.ClickedPosition[1]),
+				float64(data.ClickedPosition[2]),
+			},
+			Latency: s.Latency(),
+		})
+		defer s.endAttackMetadata()
 		valid = c.AttackEntity(e)
 	default:
 		return fmt.Errorf("unhandled UseItemOnEntity ActionType %v", data.ActionType)

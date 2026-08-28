@@ -42,6 +42,7 @@ type Session struct {
 	handlers    map[uint32]packetHandler
 	packets     chan outboundMessage
 	packetTrace packetTraceTracker
+	attackMeta  attackMetadataTracker
 
 	currentScoreboard atomic.Pointer[string]
 	currentLines      atomic.Pointer[[]string]

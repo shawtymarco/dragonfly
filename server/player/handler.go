@@ -169,6 +169,13 @@ type AttackKnockBackHandler interface {
 	HandleAttackKnockBack(ctx *Context, e world.Entity, force, height float64)
 }
 
+// AttackReachHandler may override only the reach portion of a successful
+// entity attack check. Implementations should use server-authoritative state;
+// client-reported positions in metadata are diagnostic input only.
+type AttackReachHandler interface {
+	HandleAttackReach(ctx *Context, e world.Entity, current bool, metadata session.AttackMetadata) bool
+}
+
 // NopHandler implements the Handler interface but does not execute any code when an event is called. The
 // default Handler of players is set to NopHandler.
 // Users may embed NopHandler to avoid having to implement each method.

@@ -1888,7 +1888,14 @@ func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec
 // within range of the player.
 // If the item held in the main hand of the player does nothing when used on an entity, nothing will happen.
 func (p *Player) UseItemOnEntity(e world.Entity) bool {
-	if !p.canReach(e.Position()) {
+	reachable := p.canReach(e.Position())
+	if metadata, ok := p.session().CurrentAttackMetadata(); ok {
+		if handler, ok := p.Handler().(AttackReachHandler); ok {
+			reachable = handler.HandleAttackReach(
+				NewEventContext(p.tx, p), e, reachable, metadata)
+		}
+	}
+	if !reachable {
 		return false
 	}
 	ctx := NewEventContext(p.tx, p)
