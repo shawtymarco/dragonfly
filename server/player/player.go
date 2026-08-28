@@ -2811,6 +2811,19 @@ func (p *Player) Latency() time.Duration {
 	return p.session().Latency()
 }
 
+// AttackImmunityRemaining returns the remaining entity-attack immunity. A
+// non-positive duration means a new attack is not blocked by the current
+// immunity window.
+func (p *Player) AttackImmunityRemaining() time.Duration {
+	return max(time.Until(p.immuneUntil), 0)
+}
+
+// CurrentAttackMetadata returns semantic fields for the entity attack packet
+// currently handled on the player's world owner.
+func (p *Player) CurrentAttackMetadata() (session.AttackMetadata, bool) {
+	return p.session().CurrentAttackMetadata()
+}
+
 // Tick ticks the entity, performing actions such as checking if the player is still breaking a block.
 func (p *Player) Tick(tx *world.Tx, current int64) {
 	if p.Dead() {
