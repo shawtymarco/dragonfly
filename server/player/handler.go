@@ -160,6 +160,15 @@ type Handler interface {
 	HandleDiagnostics(p *Player, d session.Diagnostics)
 }
 
+// AttackKnockBackHandler may be implemented by a Handler to replace the
+// knockback applied after a successful entity attack. HandleAttackKnockBack is
+// called after damage was accepted and before feedback for the attack is
+// completed. Calling ctx.Cancel() suppresses the default Living.KnockBack
+// call, allowing the handler to apply one authoritative velocity of its own.
+type AttackKnockBackHandler interface {
+	HandleAttackKnockBack(ctx *Context, e world.Entity, force, height float64)
+}
+
 // NopHandler implements the Handler interface but does not execute any code when an event is called. The
 // default Handler of players is set to NopHandler.
 // Users may embed NopHandler to avoid having to implement each method.

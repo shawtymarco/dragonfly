@@ -2027,7 +2027,10 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 
 	p.Exhaust(0.1)
 
-	living.KnockBack(p.Position(), force, height)
+	knockBackCtx := NewEventContext(p.tx, p)
+	if !handleAttackKnockBack(p.Handler(), knockBackCtx, living, force, height) {
+		living.KnockBack(p.Position(), force, height)
+	}
 	if traced {
 		if victim, ok := e.(*Player); ok && (force != 0 || height != 0) {
 			victim.session().QueuePacketTraceFeedback(trace.ID, session.PacketTraceRoleVictim)
@@ -2043,6 +2046,15 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 		p.session().FinishPacketTraceAccepted(trace.ID)
 	}
 	return true
+}
+
+// handleAttackKnockBack calls the optional successful-attack knockback hook
+// and reports whether the handler replaced the default motion.
+func handleAttackKnockBack(h Handler, ctx *Context, e world.Entity, force, height float64) bool {
+	if h, ok := h.(AttackKnockBackHandler); ok {
+		h.HandleAttackKnockBack(ctx, e, force, height)
+	}
+	return ctx.Cancelled()
 }
 
 // StartBreaking makes the player start breaking the block at the position passed using the item currently
