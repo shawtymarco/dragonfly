@@ -106,7 +106,7 @@ func (bpe BlockPaletteEncoding) DecodeBlockState(m map[string]any) (uint32, erro
 	stateI, ok := m["states"]
 	if version < 17694723 {
 		// This entry is a pre-1.13 block state, so decode the meta value instead.
-		meta, _ := m["val"].(int16)
+		meta, _ := legacyBlockMeta(m["val"])
 
 		// Upgrade the pre-1.13 state into a post-1.13 state.
 		state, ok := upgradeLegacyEntry(name, meta)
@@ -140,6 +140,27 @@ func (bpe BlockPaletteEncoding) DecodeBlockState(m map[string]any) (uint32, erro
 		return 0, fmt.Errorf("cannot get runtime ID of block state %v{%+v} %v", upgraded.Name, upgraded.Properties, upgraded.Version)
 	}
 	return v, nil
+}
+
+func legacyBlockMeta(value any) (int16, bool) {
+	switch meta := value.(type) {
+	case int8:
+		return int16(meta), true
+	case int16:
+		return meta, true
+	case int32:
+		if meta < -32768 || meta > 32767 {
+			return 0, false
+		}
+		return int16(meta), true
+	case int64:
+		if meta < -32768 || meta > 32767 {
+			return 0, false
+		}
+		return int16(meta), true
+	default:
+		return 0, false
+	}
 }
 
 // diskEncoding implements the Chunk encoding for writing to disk.
