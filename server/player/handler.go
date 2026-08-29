@@ -169,6 +169,13 @@ type AttackKnockBackHandler interface {
 	HandleAttackKnockBack(ctx *Context, e world.Entity, force, height float64)
 }
 
+// EnchantedHitParticleHandler may be implemented by a Handler to control the
+// enchanted-hit particles produced by a successful attack. The damage added by
+// the enchantment is unaffected.
+type EnchantedHitParticleHandler interface {
+	HandleEnchantedHitParticles(ctx *Context, e world.Entity, show *bool)
+}
+
 // AttackReachHandler may override only the reach portion of a successful
 // entity attack check. Implementations should use server-authoritative state;
 // client-reported positions in metadata are diagnostic input only.

@@ -1994,11 +1994,9 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 	if weakness, ok := p.Effect(effect.Weakness); ok {
 		dmg -= dmg * effect.Weakness.Multiplier(weakness.Level())
 	}
-	if s, ok := i.Enchantment(enchantment.Sharpness); ok {
-		dmg += enchantment.Sharpness.Addend(s.Level())
-		for _, v := range p.tx.Viewers(living.Position()) {
-			v.ViewEntityAction(living, entity.EnchantedHitAction{})
-		}
+	sharpness, enchantedHit := i.Enchantment(enchantment.Sharpness)
+	if enchantedHit {
+		dmg += enchantment.Sharpness.Addend(sharpness.Level())
 	}
 	if critical {
 		dmg *= 1.5
@@ -2025,6 +2023,17 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 			}
 		}
 		return true
+	}
+	if enchantedHit {
+		show := true
+		if h, ok := p.Handler().(EnchantedHitParticleHandler); ok {
+			h.HandleEnchantedHitParticles(NewEventContext(p.tx, p), living, &show)
+		}
+		if show {
+			for _, v := range p.tx.Viewers(living.Position()) {
+				v.ViewEntityAction(living, entity.EnchantedHitAction{})
+			}
+		}
 	}
 	if critical {
 		for _, v := range p.tx.Viewers(living.Position()) {
