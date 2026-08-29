@@ -109,26 +109,23 @@ func (a *Armour) Boots() item.Stack {
 // the armour itself and its enchantments.
 func (a *Armour) DamageReduction(dmg float64, src world.DamageSource) float64 {
 	var (
-		original                 = dmg
-		defencePoints, toughness float64
-		enchantments             []item.Enchantment
+		original      = dmg
+		defencePoints float64
+		enchantments  []item.Enchantment
 	)
 
 	for _, it := range a.Items() {
 		enchantments = append(enchantments, it.Enchantments()...)
 		if armour, ok := it.Item().(item.Armour); ok {
 			defencePoints += armour.DefencePoints()
-			toughness += armour.Toughness()
 		}
 	}
 
 	dmg -= dmg * enchantment.ProtectionFactor(src, enchantments)
 	if src.ReducedByArmour() {
-		// Armour in Bedrock edition reduces the damage taken by 4% for each effective armour point. Effective
-		// armour point decreases as damage increases, with 1 point lost for every 2 HP of damage. The defence
-		// reduction is decreased by the toughness armour value. Effective armour points will at minimum be 20% of
-		// armour points.
-		dmg -= dmg * 0.04 * math.Max(defencePoints*0.2, defencePoints-dmg/(2+toughness/4))
+		// PocketMine-style combat applies a fixed four-percent reduction for
+		// every armour point, independent of the incoming damage and toughness.
+		dmg -= dmg * 0.04 * defencePoints
 	}
 	return original - dmg
 }
