@@ -170,10 +170,10 @@ type AttackKnockBackHandler interface {
 }
 
 // EnchantedHitParticleHandler may be implemented by a Handler to control the
-// enchanted-hit particles produced by a successful attack. The damage added by
-// the enchantment is unaffected.
+// enchanted-hit particles produced by a successful attack for each individual
+// viewer. The damage added by the enchantment is unaffected.
 type EnchantedHitParticleHandler interface {
-	HandleEnchantedHitParticles(ctx *Context, e world.Entity, show *bool)
+	HandleEnchantedHitParticles(ctx *Context, e world.Entity, viewer world.Viewer, show *bool)
 }
 
 // AttackReachHandler may override only the reach portion of a successful

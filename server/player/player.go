@@ -2025,12 +2025,12 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 		return true
 	}
 	if enchantedHit {
-		show := true
-		if h, ok := p.Handler().(EnchantedHitParticleHandler); ok {
-			h.HandleEnchantedHitParticles(NewEventContext(p.tx, p), living, &show)
-		}
-		if show {
-			for _, v := range p.tx.Viewers(living.Position()) {
+		for _, v := range p.tx.Viewers(living.Position()) {
+			show := true
+			if h, ok := p.Handler().(EnchantedHitParticleHandler); ok {
+				h.HandleEnchantedHitParticles(NewEventContext(p.tx, p), living, v, &show)
+			}
+			if show {
 				v.ViewEntityAction(living, entity.EnchantedHitAction{})
 			}
 		}
