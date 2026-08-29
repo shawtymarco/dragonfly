@@ -254,6 +254,13 @@ func (g gravityAffected) Solidifies(cube.Pos, *world.Tx) bool {
 // fall spawns a falling block entity at the given position.
 func (g gravityAffected) fall(b world.Block, pos cube.Pos, tx *world.Tx) {
 	if replaceableWith(tx, pos.Side(cube.FaceDown), b) {
+		if h, ok := tx.World().Handler().(world.BlockFallHandler); ok {
+			ctx := tx.Event()
+			h.HandleBlockFall(ctx, pos, b)
+			if ctx.Cancelled() {
+				return
+			}
+		}
 		tx.SetBlock(pos, nil, nil)
 		opts := world.EntitySpawnOpts{Position: pos.Vec3Centre()}
 		tx.AddEntity(tx.World().EntityRegistry().Config().FallingBlock(opts, b))

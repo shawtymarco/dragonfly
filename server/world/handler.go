@@ -78,6 +78,14 @@ type Handler interface {
 	HandleClose(tx *Tx)
 }
 
+// BlockFallHandler may be implemented by a Handler to cancel a gravity-
+// affected block turning into a falling-block entity. Cancelling the event
+// leaves the original block in place and does not affect its other neighbour
+// update behaviour.
+type BlockFallHandler interface {
+	HandleBlockFall(ctx *Context, pos cube.Pos, b Block)
+}
+
 // Compile time check to make sure NopHandler implements Handler.
 var _ Handler = (*NopHandler)(nil)
 
