@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"maps"
 
 	"github.com/df-mc/worldupgrader/blockupgrader"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
@@ -127,6 +128,9 @@ func (bpe BlockPaletteEncoding) DecodeBlockState(m map[string]any) (uint32, erro
 	if !ok {
 		return 0, fmt.Errorf("invalid state in block entry")
 	}
+	// Block upgrades may consume or mutate properties. Legacy mappings are
+	// shared globally, so always detach the decoded state before upgrading it.
+	state = maps.Clone(state)
 
 	// Upgrade the block state if necessary.
 	upgraded := blockupgrader.Upgrade(blockupgrader.BlockState{

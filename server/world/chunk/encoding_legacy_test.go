@@ -4,15 +4,17 @@ import "testing"
 
 func TestBlockPaletteEncodingAcceptsInt32LegacyMeta(t *testing.T) {
 	registry := legacyMetaTestRegistry{}
-	runtimeID, err := (BlockPaletteEncoding{Blocks: registry}).DecodeBlockState(map[string]any{
-		"name": "minecraft:concrete",
-		"val":  int32(4),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if runtimeID != 42 {
-		t.Fatalf("runtime ID = %d, want 42", runtimeID)
+	for attempt := 0; attempt < 2; attempt++ {
+		runtimeID, err := (BlockPaletteEncoding{Blocks: registry}).DecodeBlockState(map[string]any{
+			"name": "minecraft:concrete",
+			"val":  int32(4),
+		})
+		if err != nil {
+			t.Fatalf("attempt %d: %v", attempt, err)
+		}
+		if runtimeID != 42 {
+			t.Fatalf("attempt %d runtime ID = %d, want 42", attempt, runtimeID)
+		}
 	}
 }
 
