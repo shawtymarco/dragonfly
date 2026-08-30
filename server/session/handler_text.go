@@ -1,7 +1,6 @@
 package session
 
 import (
-	"fmt"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
@@ -10,18 +9,18 @@ import (
 type TextHandler struct{}
 
 // Handle ...
-func (TextHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, c Controllable) error {
+func (TextHandler) Handle(p packet.Packet, _ *Session, _ *world.Tx, c Controllable) error {
 	pk := p.(*packet.Text)
 
 	if pk.TextType != packet.TextTypeChat {
-		return fmt.Errorf("TextType should always be Chat (%v), but got %v", packet.TextTypeChat, pk.TextType)
+		// Client modifications may emit display-only Text packets when a local
+		// text hotkey is used. These packets do not represent chat and must not
+		// turn an otherwise harmless client-side feature into a disconnect.
+		return nil
 	}
-	if pk.SourceName != s.conn.IdentityData().DisplayName {
-		return fmt.Errorf("SourceName must be equal to DisplayName")
-	}
-	if pk.XUID != s.conn.IdentityData().XUID {
-		return fmt.Errorf("XUID must be equal to player's XUID")
-	}
+	// SourceName and XUID are client-provided and are not used to attribute the
+	// message. Chat is always executed by the authenticated Controllable, so
+	// accepting empty or stale identity fields cannot spoof another player.
 	c.Chat(pk.Message)
 	return nil
 }
