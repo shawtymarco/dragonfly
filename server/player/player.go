@@ -1579,6 +1579,13 @@ func (p *Player) SetGameMode(mode world.GameMode) {
 
 	if !mode.AllowsFlying() {
 		p.StopFlying()
+	} else if !mode.HasCollision() {
+		// A collisionless mode is always airborne. Settle that here, before the mode
+		// is published, so the first UpdateAbilities already carries flight rather
+		// than advertising a grounded state and correcting it with a second burst.
+		// Assigning the field directly avoids StartFlying's re-entrant
+		// SendGameMode, which is what produced that second burst.
+		p.flying = true
 	}
 	if !mode.Visible() {
 		p.SetInvisible()

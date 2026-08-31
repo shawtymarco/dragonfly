@@ -571,15 +571,9 @@ func (s *Session) SendGameMode(c Controllable) {
 
 // SendAbilities sends the abilities of the Controllable entity of the session to the client.
 func (s *Session) SendAbilities(c Controllable) {
-	mode, abilities := c.GameMode(), gameModeAbilities(c.GameMode())
-	if mode.AllowsFlying() {
-		if c.Flying() {
-			abilities |= protocol.AbilityFlying
-		}
-	}
+	mode := c.GameMode()
+	abilities := abilityValues(mode, c.Flying())
 	if !mode.HasCollision() {
-		abilities |= protocol.AbilityNoClip
-		defer c.StartFlying()
 		// If the client is currently on the ground and turned to spectator mode, it will be unable to sprint during
 		// flight. In order to allow this, we force the client to be flying through a MovePlayer packet.
 		s.ViewEntityTeleport(c, c.Position())
@@ -613,6 +607,32 @@ func (s *Session) SendAbilities(c Controllable) {
 		CommandPermissions: cmdPerm,
 		Layers:             layers,
 	}})
+}
+
+// abilityValues returns the base ability values advertised for mode, given
+// whether the controllable is currently flying.
+//
+// A collisionless mode is always airborne, so it reports noclip and flight
+// together rather than deriving flight from the current state. SendAbilities used
+// to `defer c.StartFlying()` instead: Controllable.StartFlying sets the
+// server-side flying state and then re-enters SendGameMode, so the deferred call
+// ran after the packet had already been written. A client switched into spectator
+// while standing on the ground therefore received noclip with flight clear, then a
+// second SetPlayerGameType/MovePlayer/UpdateAbilities burst carrying flight. The
+// client kept the grounded input state from the first packet and ignored the
+// contradicting burst, so it still collided with blocks and still sent attack
+// packets until the player toggled flight by hand. Player.SetGameMode now settles
+// the flying state before publishing the mode, which keeps the flying argument
+// authoritative for the ordinary toggle paths.
+func abilityValues(mode world.GameMode, flying bool) uint32 {
+	abilities := gameModeAbilities(mode)
+	if mode.AllowsFlying() && flying {
+		abilities |= protocol.AbilityFlying
+	}
+	if !mode.HasCollision() {
+		abilities |= protocol.AbilityNoClip | protocol.AbilityFlying
+	}
+	return abilities
 }
 
 // gameModeAbilities returns the base ability values advertised to the client.

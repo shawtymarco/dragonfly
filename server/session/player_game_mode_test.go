@@ -34,3 +34,44 @@ func TestNativeSpectatorPresentationUnchanged(t *testing.T) {
 		t.Fatalf("native spectator abilities = %#x, instant build unexpectedly enabled", abilities)
 	}
 }
+
+// TestCollisionlessModesAdvertiseFlightImmediately pins the fix for a client that
+// stayed grounded after entering spectator.
+//
+// SendAbilities used to derive flight purely from the current state and repair it
+// with a deferred, re-entrant StartFlying. Entering a collisionless mode from the
+// ground therefore published noclip with flight clear, and the client kept
+// colliding with blocks and sending attacks until the player toggled flight
+// themselves. Both spectator modes must report noclip and flight in the first
+// packet regardless of the flying state they are entered from.
+func TestCollisionlessModesAdvertiseFlightImmediately(t *testing.T) {
+	for _, mode := range []world.GameMode{world.GameModeSpectator, world.GameModeNativeSpectator} {
+		for _, flying := range []bool{false, true} {
+			abilities := abilityValues(mode, flying)
+			if abilities&protocol.AbilityNoClip == 0 {
+				t.Fatalf("%T entered with flying=%v: abilities = %#x, missing noclip", mode, flying, abilities)
+			}
+			if abilities&protocol.AbilityFlying == 0 {
+				t.Fatalf("%T entered with flying=%v: abilities = %#x, missing flight", mode, flying, abilities)
+			}
+		}
+	}
+}
+
+// TestCollidingModesKeepFlightDrivenByState guards the other direction: a mode that
+// collides must not gain noclip, and its flight must still follow the player's own
+// toggle rather than being forced on.
+func TestCollidingModesKeepFlightDrivenByState(t *testing.T) {
+	for _, mode := range []world.GameMode{world.GameModeSurvival, world.GameModeCreative, world.GameModeAdventure} {
+		if abilities := abilityValues(mode, false); abilities&protocol.AbilityNoClip != 0 {
+			t.Fatalf("%T: abilities = %#x, noclip must stay off for a colliding mode", mode, abilities)
+		}
+		grounded, airborne := abilityValues(mode, false), abilityValues(mode, true)
+		if grounded&protocol.AbilityFlying != 0 {
+			t.Fatalf("%T: grounded abilities = %#x, flight must not be forced on", mode, grounded)
+		}
+		if mode.AllowsFlying() && airborne&protocol.AbilityFlying == 0 {
+			t.Fatalf("%T: airborne abilities = %#x, flight must follow the player's toggle", mode, airborne)
+		}
+	}
+}
