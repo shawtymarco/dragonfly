@@ -661,7 +661,7 @@ func gameModeAbilities(mode world.GameMode) uint32 {
 	if mode.AllowsInteraction() {
 		abilities |= protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
-	if id, ok := world.GameModeID(mode); ok && id == 5 {
+	if id, ok := world.GameModeID(mode); ok && id == 3 {
 		abilities |= protocol.AbilityInstantBuild
 		abilities &^= protocol.AbilityMayFly | protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs
 	}
@@ -1442,13 +1442,11 @@ func gameTypeFromMode(mode world.GameMode) int32 {
 	case 2:
 		return packet.GameTypeAdventure
 	case 3:
-		return packet.GameTypeSpectator
+		// spec: PocketMine-style spectator uses the creative game type so the
+		// hotbar still sends item-use packets. Noclip/fly come from abilities.
+		return packet.GameTypeCreative
 	case 4:
 		return packet.GameTypeSpectator
-	case 5:
-		// Faux spectator uses the creative game type so the hotbar still sends
-		// item-use packets. Noclip and forced flight come from abilities.
-		return packet.GameTypeCreative
 	default:
 		return packet.GameTypeSurvival
 	}

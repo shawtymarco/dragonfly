@@ -9,10 +9,10 @@ import (
 )
 
 func TestPocketMineSpectatorPresentation(t *testing.T) {
-	if got := gameTypeFromMode(world.GameModeFauxSpectator); got != packet.GameTypeCreative {
-		t.Fatalf("faux spectator game type = %d, want creative", got)
+	if got := gameTypeFromMode(world.GameModeSpectator); got != packet.GameTypeCreative {
+		t.Fatalf("spectator game type = %d, want creative", got)
 	}
-	abilities := gameModeAbilities(world.GameModeFauxSpectator)
+	abilities := gameModeAbilities(world.GameModeSpectator)
 	if abilities&protocol.AbilityInstantBuild == 0 || abilities&protocol.AbilityInvulnerable == 0 {
 		t.Fatalf("spectator abilities = %#x, missing PMMP creative/invulnerable bits", abilities)
 	}
@@ -22,15 +22,6 @@ func TestPocketMineSpectatorPresentation(t *testing.T) {
 	forbidden := uint32(protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers | protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs)
 	if abilities&forbidden != 0 {
 		t.Fatalf("spectator abilities = %#x, interaction bits must remain disabled", abilities)
-	}
-}
-
-func TestSpectatorPresentationIsNative(t *testing.T) {
-	if got := gameTypeFromMode(world.GameModeSpectator); got != packet.GameTypeSpectator {
-		t.Fatalf("spectator game type = %d, want native spectator", got)
-	}
-	if world.GameModeSpectator.AllowsInteraction() {
-		t.Fatal("native spectator unexpectedly allows ordinary item interaction")
 	}
 }
 
@@ -54,7 +45,7 @@ func TestNativeSpectatorPresentationUnchanged(t *testing.T) {
 // themselves. Both spectator modes must report noclip and flight in the first
 // packet regardless of the flying state they are entered from.
 func TestCollisionlessModesAdvertiseFlightImmediately(t *testing.T) {
-	for _, mode := range []world.GameMode{world.GameModeSpectator, world.GameModeNativeSpectator, world.GameModeFauxSpectator} {
+	for _, mode := range []world.GameMode{world.GameModeSpectator, world.GameModeNativeSpectator} {
 		for _, flying := range []bool{false, true} {
 			abilities := abilityValues(mode, flying)
 			if abilities&protocol.AbilityNoClip == 0 {
