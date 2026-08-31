@@ -62,12 +62,21 @@ type OffsetEntity interface {
 	NetworkOffset() float64
 }
 
-// entityHidden checks if a world.Entity is being explicitly hidden from the Session.
+// entityHidden checks if a world.Entity is hidden from the Session, either
+// explicitly or because its game mode must not expose an actor/hitbox to other
+// clients. The controlling session always retains its own actor state.
 func (s *Session) entityHidden(e world.Entity) bool {
+	if g, ok := e.(interface{ GameMode() world.GameMode }); ok && !gameModeVisibleToSession(e.H() == s.ent, g.GameMode()) {
+		return true
+	}
 	s.entityMutex.RLock()
 	_, ok := s.hiddenEntities[e.H().UUID()]
 	s.entityMutex.RUnlock()
 	return ok
+}
+
+func gameModeVisibleToSession(self bool, mode world.GameMode) bool {
+	return self || mode.Visible()
 }
 
 // ViewEntity ...

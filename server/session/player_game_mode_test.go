@@ -35,6 +35,22 @@ func TestNativeSpectatorPresentationUnchanged(t *testing.T) {
 	}
 }
 
+func TestSpectatorActorsHiddenFromOtherSessions(t *testing.T) {
+	for _, mode := range []world.GameMode{world.GameModeSpectator, world.GameModeNativeSpectator} {
+		if gameModeVisibleToSession(false, mode) {
+			t.Fatalf("%T is visible to another session", mode)
+		}
+		if !gameModeVisibleToSession(true, mode) {
+			t.Fatalf("%T is hidden from its controlling session", mode)
+		}
+	}
+	for _, mode := range []world.GameMode{world.GameModeSurvival, world.GameModeCreative, world.GameModeAdventure} {
+		if !gameModeVisibleToSession(false, mode) {
+			t.Fatalf("%T is hidden from another session", mode)
+		}
+	}
+}
+
 // TestCollisionlessModesAdvertiseFlightImmediately pins the fix for a client that
 // stayed grounded after entering spectator.
 //

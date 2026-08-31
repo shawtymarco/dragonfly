@@ -370,7 +370,7 @@ func (b *FishingHookBehaviour) hitEntity(e *Ent, tx *world.Tx, other world.Entit
 func (b *FishingHookBehaviour) scanNearby(e *Ent, tx *world.Tx, owner world.Entity) {
 	box := e.H().Type().BBox(e).Translate(e.Position()).Grow(0.5)
 	for other := range tx.EntitiesWithin(box.Grow(1)) {
-		if other.H() == e.H() || other.H() == owner.H() {
+		if other.H() == e.H() || other.H() == owner.H() || !world.EntityHasCollision(other) {
 			continue
 		}
 		if !other.H().Type().BBox(other).Translate(other.Position()).IntersectsWith(box) {
@@ -431,7 +431,7 @@ func (b *FishingHookBehaviour) ignores(e *Ent) trace.EntityFilter {
 				if e.H() == other.H() || b.owner == other.H() {
 					continue
 				}
-				if g, ok := other.(interface{ GameMode() world.GameMode }); ok && !g.GameMode().HasCollision() {
+				if !world.EntityHasCollision(other) {
 					continue
 				}
 				if b.arcing && isPlayerEntity(other) {

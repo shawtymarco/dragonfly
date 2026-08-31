@@ -67,6 +67,16 @@ func GameModeID(mode GameMode) (int, bool) {
 	return gameModeReg.LookupID(mode)
 }
 
+// EntityHasCollision reports whether an Entity participates in gameplay
+// collision and targeting. Entities without a game mode remain collidable;
+// player-like entities inherit the collision contract of their game mode.
+func EntityHasCollision(e Entity) bool {
+	if g, ok := e.(interface{ GameMode() GameMode }); ok {
+		return g.GameMode().HasCollision()
+	}
+	return true
+}
+
 type gameModeRegistry struct {
 	gameModes map[int]GameMode
 	ids       map[GameMode]int

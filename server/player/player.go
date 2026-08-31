@@ -1601,8 +1601,22 @@ func (p *Player) SetGameMode(mode world.GameMode) {
 	}
 	if !mode.Visible() {
 		p.SetInvisible()
+		if previous.Visible() {
+			// Metadata invisibility leaves a client-side player hitbox behind. Remove
+			// the actor entirely so spectators cannot steal block targeting, stop
+			// placement, absorb attacks, or otherwise affect active players.
+			for _, v := range p.viewers() {
+				v.HideEntity(p)
+			}
+		}
 	} else if !previous.Visible() {
 		p.SetVisible()
+		for _, v := range p.viewers() {
+			v.ViewEntity(p)
+			v.ViewEntityState(p)
+			v.ViewEntityItems(p)
+			v.ViewEntityArmour(p)
+		}
 	}
 
 	p.session().SendGameMode(p)
@@ -1670,6 +1684,11 @@ func (p *Player) UseItem() {
 		return
 	}
 	if p.Handler().HandleItemUse(ctx); ctx.Cancelled() {
+		return
+	}
+	if !p.GameMode().HasCollision() {
+		// Faux spectator items may be handled by the server above, but must not
+		// fall through to vanilla use such as throwing a projectile.
 		return
 	}
 	i, left := p.HeldItems()
@@ -1855,6 +1874,10 @@ func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec
 		p.resendNearbyBlocks(pos, face)
 		return
 	}
+	if !p.GameMode().HasCollision() {
+		p.resendNearbyBlocks(pos, face)
+		return
+	}
 	i, left := p.HeldItems()
 	b := p.tx.Block(pos)
 	_, fishingRod := i.Item().(item.FishingRod)
@@ -1907,6 +1930,9 @@ func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec
 // within range of the player.
 // If the item held in the main hand of the player does nothing when used on an entity, nothing will happen.
 func (p *Player) UseItemOnEntity(e world.Entity) bool {
+	if !p.GameMode().HasCollision() || !world.EntityHasCollision(e) {
+		return false
+	}
 	reachable := p.canReach(e.Position())
 	if metadata, ok := p.session().CurrentAttackMetadata(); ok {
 		if handler, ok := p.Handler().(AttackReachHandler); ok {
@@ -1947,6 +1973,12 @@ func (p *Player) AttackEntity(e world.Entity) bool {
 	if traced && !playerTarget {
 		p.session().RejectPacketTrace(trace.ID, session.PacketTraceReasonNonPlayer)
 		traced = false
+	}
+	if !p.GameMode().HasCollision() || !world.EntityHasCollision(e) {
+		if traced {
+			p.session().RejectPacketTrace(trace.ID, session.PacketTraceReasonInvulnerable)
+		}
+		return false
 	}
 	if !p.canReach(e.Position()) {
 		if traced {
@@ -2281,6 +2313,9 @@ func (p *Player) obstructedPos(pos cube.Pos, b world.Block) (obstructed, selfOnl
 	}
 
 	for e := range p.tx.EntitiesWithin(cube.Box(-3, -3, -3, 3, 3, 3).Translate(pos.Vec3())) {
+		if !world.EntityHasCollision(e) {
+			continue
+		}
 		t := e.H().Type()
 		switch t {
 		case entity.ItemType, entity.ArrowType, entity.ExperienceOrbType:
@@ -2590,7 +2625,7 @@ func (p *Player) Rotation() cube.Rotation {
 // Collect makes the player collect the item stack passed, adding it to the inventory. The amount of items that could
 // be added is returned.
 func (p *Player) Collect(s item.Stack) (int, bool) {
-	if p.Dead() || !p.GameMode().AllowsInteraction() {
+	if p.Dead() || !p.GameMode().AllowsInteraction() || !p.GameMode().HasCollision() {
 		return 0, false
 	}
 	ctx := NewEventContext(p.tx, p)
@@ -2694,7 +2729,7 @@ func (p *Player) SetExperienceProgress(progress float64) {
 // CanCollectExperience checks if the player can collect experience, which is true if the player is not dead,
 // is in a game mode that allows interaction and if 100ms have passed since the last experience collection.
 func (p *Player) CanCollectExperience() bool {
-	if p.Dead() || !p.GameMode().AllowsInteraction() {
+	if p.Dead() || !p.GameMode().AllowsInteraction() || !p.GameMode().HasCollision() {
 		return false
 	}
 	if last := p.lastXPPickup; last != nil && time.Since(*last) < time.Millisecond*100 {
@@ -2769,6 +2804,9 @@ func (p *Player) mendItems(xp int) int {
 func (p *Player) Drop(s item.Stack) int {
 	ctx := NewEventContext(p.tx, p)
 	if p.Handler().HandleItemDrop(ctx, s); ctx.Cancelled() {
+		return 0
+	}
+	if !p.GameMode().HasCollision() {
 		return 0
 	}
 	opts := world.EntitySpawnOpts{Position: p.Position().Add(mgl64.Vec3{0, 1.4}), Velocity: p.Rotation().Vec3().Mul(0.4)}

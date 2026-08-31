@@ -201,6 +201,9 @@ func (s ShulkerBox) pushEntities(pos cube.Pos, tx *world.Tx) {
 	}
 	searchBox := shulkerBBoxes[0].Translate(pos.Vec3()).Grow(0.35)
 	for e := range tx.EntitiesWithin(searchBox) {
+		if !world.EntityHasCollision(e) {
+			continue
+		}
 		s.push(pos, tx, e)
 	}
 }
