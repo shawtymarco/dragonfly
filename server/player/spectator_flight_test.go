@@ -32,7 +32,7 @@ func TestSpectatorFlightSurvivesClientLanding(t *testing.T) {
 			UUID: uuid.New(), Name: "Spectator", Position: pos, GameMode: world.GameModeSurvival,
 		})).(*Player)
 
-		for _, mode := range []world.GameMode{world.GameModeSpectator, world.GameModeNativeSpectator} {
+		for _, mode := range []world.GameMode{world.GameModeSpectator, world.GameModeNativeSpectator, world.GameModeFauxSpectator} {
 			pl.onGround = true
 			pl.SetGameMode(mode)
 			if !pl.Flying() {

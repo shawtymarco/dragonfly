@@ -35,13 +35,16 @@ var (
 	// GameModeAdventure represents the adventure game mode: Players with this game mode cannot edit the world
 	// (placing or breaking blocks).
 	GameModeAdventure adventure
-	// GameModeSpectator is PocketMine-style spectator (`spec`): the client is
-	// told it is creative so the hotbar stays clickable, while the server
-	// strips collision, damage, editing and visibility.
+	// GameModeSpectator is Bedrock's native spectator mode. The client owns the
+	// spectator presentation and does not send ordinary item-use interactions.
 	GameModeSpectator spectator
-	// GameModeNativeSpectator is Bedrock native spectator (`nspec`): protocol
-	// GameTypeSpectator. The client will not send item-use packets.
+	// GameModeNativeSpectator preserves the older explicit native-spectator value
+	// for consumers that already use it for temporary death states.
 	GameModeNativeSpectator nativeSpectator
+	// GameModeFauxSpectator is PocketMine-style spectator: the client is told it
+	// is creative so clickable server controls keep producing item-use packets,
+	// while the server strips collision, damage, editing and visibility.
+	GameModeFauxSpectator fauxSpectator
 )
 
 var gameModeReg = newGameModeRegistry(map[int]GameMode{
@@ -50,13 +53,14 @@ var gameModeReg = newGameModeRegistry(map[int]GameMode{
 	2: GameModeAdventure,
 	3: GameModeSpectator,
 	4: GameModeNativeSpectator,
+	5: GameModeFauxSpectator,
 })
 
 // GameModeByID looks up a GameMode for the ID passed, returning
 // GameModeSurvival for 0, GameModeCreative for 1, GameModeAdventure for 2,
-// GameModeSpectator for 3 and GameModeNativeSpectator for 4. If the ID is
-// unknown, the bool returned is false. In this case the GameMode returned is
-// GameModeSurvival.
+// GameModeSpectator for 3, GameModeNativeSpectator for 4 and
+// GameModeFauxSpectator for 5. If the ID is unknown, the bool returned is false.
+// In this case the GameMode returned is GameModeSurvival.
 func GameModeByID(id int) (GameMode, bool) {
 	return gameModeReg.Lookup(id)
 }
@@ -82,9 +86,10 @@ func newGameModeRegistry(mode map[int]GameMode) *gameModeRegistry {
 }
 
 // Lookup looks up a GameMode for the ID passed, returning GameModeSurvival for
-// 0, GameModeCreative for 1, GameModeAdventure for 2, GameModeSpectator for
-// 3 and GameModeNativeSpectator for 4. If the ID is unknown, the bool returned
-// is false. In this case the GameMode returned is GameModeSurvival.
+// 0, GameModeCreative for 1, GameModeAdventure for 2, GameModeSpectator for 3,
+// GameModeNativeSpectator for 4 and GameModeFauxSpectator for 5. If the ID is
+// unknown, the bool returned is false. In this case the GameMode returned is
+// GameModeSurvival.
 func (reg *gameModeRegistry) Lookup(id int) (GameMode, bool) {
 	mode, ok := reg.gameModes[id]
 	if !ok {
@@ -139,8 +144,7 @@ func (adventure) AllowsInteraction() bool   { return true }
 func (adventure) Visible() bool             { return true }
 func (adventure) InstantPortalTravel() bool { return false }
 
-// spectator is PocketMine-style spectator: fly and noclip, invisible, but the
-// client stays on the creative game type so hotbar clicks still arrive.
+// spectator is Bedrock native spectator.
 type spectator struct{}
 
 func (spectator) AllowsEditing() bool       { return false }
@@ -148,7 +152,7 @@ func (spectator) AllowsTakingDamage() bool  { return false }
 func (spectator) CreativeInventory() bool   { return false }
 func (spectator) HasCollision() bool        { return false }
 func (spectator) AllowsFlying() bool        { return true }
-func (spectator) AllowsInteraction() bool   { return true }
+func (spectator) AllowsInteraction() bool   { return false }
 func (spectator) Visible() bool             { return false }
 func (spectator) InstantPortalTravel() bool { return false }
 
@@ -164,3 +168,16 @@ func (nativeSpectator) AllowsFlying() bool        { return true }
 func (nativeSpectator) AllowsInteraction() bool   { return false }
 func (nativeSpectator) Visible() bool             { return false }
 func (nativeSpectator) InstantPortalTravel() bool { return false }
+
+// fauxSpectator is PocketMine-style spectator: fly and noclip, invisible, but
+// the client stays on the creative game type so hotbar clicks still arrive.
+type fauxSpectator struct{}
+
+func (fauxSpectator) AllowsEditing() bool       { return false }
+func (fauxSpectator) AllowsTakingDamage() bool  { return false }
+func (fauxSpectator) CreativeInventory() bool   { return false }
+func (fauxSpectator) HasCollision() bool        { return false }
+func (fauxSpectator) AllowsFlying() bool        { return true }
+func (fauxSpectator) AllowsInteraction() bool   { return true }
+func (fauxSpectator) Visible() bool             { return false }
+func (fauxSpectator) InstantPortalTravel() bool { return false }
