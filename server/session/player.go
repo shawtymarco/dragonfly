@@ -565,6 +565,15 @@ func (s *Session) SendGameMode(c Controllable) {
 	if s == Nop {
 		return
 	}
+	if !c.GameMode().HasCollision() {
+		// Match the transition that already works when entering replay worlds:
+		// clear the client's grounded state before changing the Creative-presented
+		// faux spectator game type. SetPlayerGameType may otherwise preserve the
+		// standing Creative collision state and ignore the later noclip ability.
+		// SendAbilities sends a second reset after publishing noclip, bracketing the
+		// game-type/ability transition from both sides.
+		s.ViewEntityTeleport(c, c.Position())
+	}
 	s.writePacket(&packet.SetPlayerGameType{GameType: gameTypeFromMode(c.GameMode())})
 	s.SendAbilities(c)
 }
@@ -603,13 +612,10 @@ func (s *Session) SendAbilities(c Controllable) {
 		Layers:             layers,
 	}})
 	if !mode.HasCollision() {
-		// Clear the client's grounded state so it can fly, and sprint while flying,
-		// straight away. This has to follow UpdateAbilities: a client that receives the
-		// teleport first is still colliding when it processes it, so it re-grounds on
-		// the block it is standing on within the same tick and noclip never engages.
-		// That left a player who entered spectator from the ground colliding with
-		// blocks and hitting others until they toggled flight by hand, while a player
-		// who entered it airborne was fine.
+		// Complete the grounded-state reset after noclip is active. SendGameMode also
+		// emits one reset before SetPlayerGameType: the first prevents the Creative
+		// transition from preserving a standing collision state, and this second one
+		// settles movement after the ability update.
 		s.ViewEntityTeleport(c, c.Position())
 	}
 }
