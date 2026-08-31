@@ -1315,9 +1315,10 @@ func (p *Player) Flying() bool {
 	return p.flying
 }
 
-// StopFlying makes the player stop flying if it currently is.
+// StopFlying makes the player stop flying if it currently is. A collisionless
+// game mode is always airborne, so a request to stop is ignored for it.
 func (p *Player) StopFlying() {
-	if !p.flying {
+	if !p.flying || !p.GameMode().HasCollision() {
 		return
 	}
 	p.flying = false

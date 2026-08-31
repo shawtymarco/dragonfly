@@ -573,11 +573,6 @@ func (s *Session) SendGameMode(c Controllable) {
 func (s *Session) SendAbilities(c Controllable) {
 	mode := c.GameMode()
 	abilities := abilityValues(mode, c.Flying())
-	if !mode.HasCollision() {
-		// If the client is currently on the ground and turned to spectator mode, it will be unable to sprint during
-		// flight. In order to allow this, we force the client to be flying through a MovePlayer packet.
-		s.ViewEntityTeleport(c, c.Position())
-	}
 	playerPerm, cmdPerm := byte(packet.PermissionLevelMember), byte(protocol.CommandPermissionLevelAny)
 	if o, ok := c.(interface{ Operator() bool }); ok && o.Operator() {
 		playerPerm = packet.PermissionLevelOperator
@@ -607,6 +602,16 @@ func (s *Session) SendAbilities(c Controllable) {
 		CommandPermissions: cmdPerm,
 		Layers:             layers,
 	}})
+	if !mode.HasCollision() {
+		// Clear the client's grounded state so it can fly, and sprint while flying,
+		// straight away. This has to follow UpdateAbilities: a client that receives the
+		// teleport first is still colliding when it processes it, so it re-grounds on
+		// the block it is standing on within the same tick and noclip never engages.
+		// That left a player who entered spectator from the ground colliding with
+		// blocks and hitting others until they toggled flight by hand, while a player
+		// who entered it airborne was fine.
+		s.ViewEntityTeleport(c, c.Position())
+	}
 }
 
 // abilityValues returns the base ability values advertised for mode, given

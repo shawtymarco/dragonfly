@@ -157,6 +157,10 @@ func (h PlayerAuthInputHandler) handleInputFlags(flags protocol.InputFlags, s *S
 		}
 	}
 	if flags.Load(packet.InputFlagStopFlying) {
+		// A client in a collisionless mode reports this for the ticks it still
+		// believes it is standing on a block, before noclip takes effect. Controllable
+		// implementations refuse it for such a mode, which keeps the server's flying
+		// state in step with the flight SendAbilities advertises unconditionally.
 		c.StopFlying()
 	}
 }
