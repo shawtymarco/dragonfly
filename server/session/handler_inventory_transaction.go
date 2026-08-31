@@ -62,6 +62,7 @@ func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *wo
 		return
 	case *protocol.UseItemOnEntityTransactionData:
 		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
+			h.resyncHeldSlot(s, c, int(data.HotBarSlot))
 			if traced {
 				s.RejectPacketTrace(trace.ID, PacketTraceReasonHeldItem)
 			}
@@ -70,11 +71,13 @@ func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *wo
 		return h.handleUseItemOnEntityTransaction(data, s, tx, c)
 	case *protocol.UseItemTransactionData:
 		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
+			h.resyncHeldSlot(s, c, int(data.HotBarSlot))
 			return
 		}
 		return h.handleUseItemTransaction(data, s, tx, c)
 	case *protocol.ReleaseItemTransactionData:
 		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
+			h.resyncHeldSlot(s, c, int(data.HotBarSlot))
 			return
 		}
 		return h.handleReleaseItemTransaction(c)
@@ -88,6 +91,18 @@ func (h *InventoryTransactionHandler) resendInventories(s *Session) {
 	s.sendInv(s.ui, protocol.WindowIDUI)
 	s.sendInv(s.offHand, protocol.WindowIDOffHand)
 	s.sendInv(s.armour.Inventory(), protocol.WindowIDArmour)
+}
+
+// resyncHeldSlot repairs only the state involved in a rejected held-item
+// transaction. Successful use transactions rely on inventory listeners and
+// the client's prediction instead of retransmitting every inventory window.
+func (h *InventoryTransactionHandler) resyncHeldSlot(s *Session, c Controllable, requestedSlot int) {
+	if requestedSlot >= 0 && requestedSlot <= 8 {
+		if actual, err := s.inv.Item(requestedSlot); err == nil {
+			s.sendItem(actual, requestedSlot, protocol.WindowIDInventory)
+		}
+	}
+	s.SendHeldSlot(int(*s.heldSlot), c, true)
 }
 
 // handleNormalTransaction ...
@@ -216,30 +231,26 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 // handleUseItemTransaction ...
 func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.UseItemTransactionData, s *Session, tx *world.Tx, c Controllable) error {
 	pos := cube.Pos{int(data.BlockPosition[0]), int(data.BlockPosition[1]), int(data.BlockPosition[2])}
+	var simulationTx *world.Tx
+	if data.ActionType == protocol.UseItemActionClickBlock {
+		simulationTx = tx
+	}
+	if (data.ActionType == protocol.UseItemActionClickBlock || data.ActionType == protocol.UseItemActionClickAir) &&
+		skipSimulationTick(data.TriggerType, c, simulationTx, pos) {
+		return nil
+	}
 	if data.ClientPrediction == protocol.ClientPredictionSuccess || data.ActionType == protocol.UseItemActionBreakBlock {
 		// Suppress echoing the swing animation only when the client has already predicted it locally.
 		s.swingingArm.Store(true)
 		defer s.swingingArm.Store(false)
 	}
 
-	// We reset the inventory so that we can send the held item update without the client already
-	// having done that client-side.
-	// Because of the new inventory system, the client will expect a transaction confirmation, but instead of doing that
-	// it's much easier to just resend the inventory.
-	h.resendInventories(s)
-
 	switch data.ActionType {
 	case protocol.UseItemActionBreakBlock:
 		c.BreakBlock(pos)
 	case protocol.UseItemActionClickBlock:
-		if skipSimulationTick(data.TriggerType, c, tx, pos) {
-			return nil
-		}
 		c.UseItemOnBlock(pos, cube.Face(data.BlockFace), vec32To64(data.ClickedPosition))
 	case protocol.UseItemActionClickAir:
-		if skipSimulationTick(data.TriggerType, c, nil, cube.Pos{}) {
-			return nil
-		}
 		c.UseItem()
 	default:
 		return fmt.Errorf("unhandled UseItem ActionType %v", data.ActionType)
