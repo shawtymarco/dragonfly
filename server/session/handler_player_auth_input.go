@@ -149,19 +149,10 @@ func (h PlayerAuthInputHandler) handleInputFlags(flags protocol.InputFlags, s *S
 		c.PunchAir()
 	}
 	if flags.Load(packet.InputFlagStartFlying) {
-		if !c.GameMode().AllowsFlying() {
-			s.conf.Log.Debug("process packet: PlayerAuthInput: flying flag enabled while unable to fly")
-			s.SendAbilities(c)
-		} else {
-			c.StartFlying()
-		}
+		handleFlightToggle(s, c, true)
 	}
 	if flags.Load(packet.InputFlagStopFlying) {
-		// A client in a collisionless mode reports this for the ticks it still
-		// believes it is standing on a block, before noclip takes effect. Controllable
-		// implementations refuse it for such a mode, which keeps the server's flying
-		// state in step with the flight SendAbilities advertises unconditionally.
-		c.StopFlying()
+		handleFlightToggle(s, c, false)
 	}
 }
 
