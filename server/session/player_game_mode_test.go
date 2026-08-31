@@ -71,6 +71,23 @@ func TestFauxSpectatorStagesFlightBeforeNoClip(t *testing.T) {
 	}
 }
 
+func TestFauxSpectatorResyncWaitsForLaterClientInput(t *testing.T) {
+	remaining := fauxSpectatorResyncInputDelay
+	for input := uint32(1); input <= fauxSpectatorResyncInputDelay; input++ {
+		var ready bool
+		remaining, ready = nextFauxSpectatorResyncInput(remaining)
+		if input < fauxSpectatorResyncInputDelay && ready {
+			t.Fatalf("resync became ready after input %d, want %d", input, fauxSpectatorResyncInputDelay)
+		}
+		if input == fauxSpectatorResyncInputDelay && !ready {
+			t.Fatalf("resync not ready after input %d", input)
+		}
+	}
+	if remaining != 0 {
+		t.Fatalf("remaining inputs = %d, want 0", remaining)
+	}
+}
+
 // TestCollidingModesKeepFlightDrivenByState guards the other direction: a mode that
 // collides must not gain noclip, and its flight must still follow the player's own
 // toggle rather than being forced on.

@@ -53,7 +53,8 @@ type Session struct {
 
 	emoteChatMuted bool
 
-	teleportPos atomic.Pointer[mgl64.Vec3]
+	teleportPos               atomic.Pointer[mgl64.Vec3]
+	fauxSpectatorResyncInputs atomic.Uint32
 
 	entityMutex sync.RWMutex
 	// currentEntityRuntimeID holds the runtime ID assigned to the last entity. It is incremented for every

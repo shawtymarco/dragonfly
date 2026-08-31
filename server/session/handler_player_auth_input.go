@@ -15,13 +15,53 @@ import (
 // PlayerAuthInputHandler handles the PlayerAuthInput packet.
 type PlayerAuthInputHandler struct{}
 
+// Three input frames guarantee that, even when the mode change itself was
+// triggered while handling input, the resend follows later client movement
+// frames and is emitted in a distinct network flush.
+const fauxSpectatorResyncInputDelay uint32 = 3
+
 // Handle ...
 func (h PlayerAuthInputHandler) Handle(p packet.Packet, s *Session, tx *world.Tx, c Controllable) error {
 	pk := p.(*packet.PlayerAuthInput)
 	if err := h.handleMovement(pk, s, c); err != nil {
 		return err
 	}
-	return h.handleActions(pk, s, tx, c)
+	if err := h.handleActions(pk, s, tx, c); err != nil {
+		return err
+	}
+	s.advanceFauxSpectatorResync(c)
+	return nil
+}
+
+// advanceFauxSpectatorResync republishes collisionless abilities only after
+// the client has processed later input frames. A production trace showed that
+// the correct initial Flying+NoClip state was ignored in the game-mode burst,
+// while the identical state sent after a later StopFlying gesture took effect.
+func (s *Session) advanceFauxSpectatorResync(c Controllable) {
+	for {
+		remaining := s.fauxSpectatorResyncInputs.Load()
+		next, ready := nextFauxSpectatorResyncInput(remaining)
+		if remaining == 0 {
+			return
+		}
+		if !s.fauxSpectatorResyncInputs.CompareAndSwap(remaining, next) {
+			continue
+		}
+		if ready {
+			if id, ok := world.GameModeID(c.GameMode()); ok && id == 3 {
+				s.SendAbilities(c)
+			}
+		}
+		return
+	}
+}
+
+func nextFauxSpectatorResyncInput(remaining uint32) (next uint32, ready bool) {
+	if remaining == 0 {
+		return 0, false
+	}
+	remaining--
+	return remaining, remaining == 0
 }
 
 // handleMovement handles the movement part of the packet.PlayerAuthInput.
