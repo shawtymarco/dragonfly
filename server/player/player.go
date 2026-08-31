@@ -1581,12 +1581,15 @@ func (p *Player) SetGameMode(mode world.GameMode) {
 	if !mode.AllowsFlying() {
 		p.StopFlying()
 	} else if !mode.HasCollision() {
-		// A collisionless mode is always airborne. Settle that here, before the mode
-		// is published, so the first UpdateAbilities already carries flight rather
-		// than advertising a grounded state and correcting it with a second burst.
-		// Assigning the field directly avoids StartFlying's re-entrant
-		// SendGameMode, which is what produced that second burst.
+		// A collisionless mode is always airborne. Settle both server-side states
+		// here, before the mode is published, so the first UpdateAbilities and
+		// corrective teleport agree. PocketMine clears onGround for the same reason:
+		// leaving it set makes a client entering spectator while standing on a block
+		// immediately re-ground and retain collision. Assigning flying directly avoids
+		// StartFlying's re-entrant SendGameMode packet burst.
 		p.flying = true
+		p.onGround = false
+		p.ResetFallDistance()
 	}
 	if !mode.Visible() {
 		p.SetInvisible()
@@ -2455,7 +2458,9 @@ func (p *Player) teleport(pos mgl64.Vec3) {
 // Move also rotates the player, adding deltaYaw and deltaPitch to the respective values.
 func (p *Player) Move(deltaPos mgl64.Vec3, deltaYaw, deltaPitch float64) {
 	if p.Dead() || (deltaPos.ApproxEqual(mgl64.Vec3{}) && mgl64.FloatEqual(deltaYaw, 0) && mgl64.FloatEqual(deltaPitch, 0)) {
-		p.onGround = true
+		// PlayerAuthInput is emitted even while the player stands still. Do not let
+		// that stationary packet undo the airborne state required by noclip.
+		p.onGround = p.GameMode().HasCollision()
 		p.updateFallState(deltaPos.Y())
 		return
 	}
@@ -3136,6 +3141,10 @@ func (p *Player) insideOfSolid() bool {
 
 // checkCollisions checks the player's block collisions.
 func (p *Player) checkBlockCollisions(vel mgl64.Vec3) {
+	if !p.GameMode().HasCollision() {
+		p.collidedHorizontally = false
+		return
+	}
 	entityBBox := Type.BBox(p).Translate(p.Position())
 	deltaX, deltaY, deltaZ := vel[0], vel[1], vel[2]
 
@@ -3234,6 +3243,9 @@ func (p *Player) checkEntitySteppers() {
 
 // checkOnGround checks if the player is currently considered to be on the ground.
 func (p *Player) checkOnGround(deltaPos mgl64.Vec3) bool {
+	if !p.GameMode().HasCollision() {
+		return false
+	}
 	box := Type.BBox(p).Translate(p.Position()).Extend(mgl64.Vec3{0, -0.05}).Extend(deltaPos.Mul(-1.0))
 	b := box.Grow(1)
 

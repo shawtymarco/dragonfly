@@ -3,6 +3,8 @@ package player
 import (
 	"testing"
 
+	"github.com/df-mc/dragonfly/server/block"
+	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
@@ -25,11 +27,13 @@ func TestSpectatorFlightSurvivesClientLanding(t *testing.T) {
 
 	pos := mgl64.Vec3{0.5, 64, 0.5}
 	if err := w.Do(func(tx *world.Tx) {
+		tx.SetBlock(cube.Pos{0, 63, 0}, block.Stone{}, nil)
 		pl := tx.AddEntity(world.EntitySpawnOpts{Position: pos}.New(Type, Config{
 			UUID: uuid.New(), Name: "Spectator", Position: pos, GameMode: world.GameModeSurvival,
 		})).(*Player)
 
 		for _, mode := range []world.GameMode{world.GameModeSpectator, world.GameModeNativeSpectator} {
+			pl.onGround = true
 			pl.SetGameMode(mode)
 			if !pl.Flying() {
 				t.Fatalf("%T: entering the mode from the ground left the player not flying", mode)
@@ -37,6 +41,23 @@ func TestSpectatorFlightSurvivesClientLanding(t *testing.T) {
 			pl.StopFlying()
 			if !pl.Flying() {
 				t.Fatalf("%T: a client landing report cleared flight, desyncing it from the advertised abilities", mode)
+			}
+			if pl.onGround {
+				t.Fatalf("%T: entering collisionless mode retained the grounded state", mode)
+			}
+
+			// The client emits stationary input every tick. That path and the regular
+			// entity tick must not reconstruct onGround from the block below while the
+			// mode has no collision.
+			pl.onGround = true
+			pl.Move(mgl64.Vec3{}, 0, 0)
+			if pl.onGround {
+				t.Fatalf("%T: stationary input re-grounded the collisionless player", mode)
+			}
+			pl.onGround = true
+			pl.Tick(tx, 1)
+			if pl.onGround {
+				t.Fatalf("%T: entity tick re-grounded the collisionless player", mode)
 			}
 		}
 
