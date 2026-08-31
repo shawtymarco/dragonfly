@@ -26,17 +26,15 @@ func (h *ModalFormResponseHandler) Handle(p packet.Packet, _ *Session, tx *world
 	h.mu.Unlock()
 
 	resp, exists := pk.ResponseData.Value()
-	if !ok && !exists {
-		// Sometimes the client seems to send a second response with no data, which would cause the player to be kicked
-		// by the server. This should patch that.
+	if !ok {
+		// A client may reply to a form that was superseded or evicted after
+		// several forms were opened quickly. The response cannot be applied
+		// safely, but stale client UI state must not close the whole session.
 		return nil
 	}
 	if !exists || len(resp) == 0 {
 		// The form was cancelled: The cross in the top right corner was clicked.
 		resp = nil
-	}
-	if !ok {
-		return fmt.Errorf("no form with ID %v currently opened", pk.FormID)
 	}
 	if err := f.SubmitJSON(resp, c, tx); err != nil {
 		return fmt.Errorf("error submitting form data: %w", err)
