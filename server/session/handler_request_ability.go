@@ -28,7 +28,13 @@ func (a RequestAbilityHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, 
 // client has already changed its local state and must receive authoritative
 // abilities again or it keeps Creative collision until another manual toggle.
 func handleFlightToggle(s *Session, c Controllable, flying bool) {
-	switch flightTogglePolicy(c.GameMode(), c.Flying(), flying) {
+	mode := c.GameMode()
+	current := c.Flying()
+	decision := flightTogglePolicy(mode, current, flying)
+	if id, ok := world.GameModeID(mode); ok && (id == 3 || id == 4) {
+		s.conf.Log.Info("faux spectator state trace", "stage", "client_flight_toggle", "mode_id", id, "current_flying", current, "requested_flying", flying, "decision", decision)
+	}
+	switch decision {
 	case flightToggleResync:
 		s.conf.Log.Debug("process flight toggle: resynchronising rejected request", "flying", flying)
 		s.SendAbilities(c)

@@ -565,7 +565,12 @@ func (s *Session) SendGameMode(c Controllable) {
 	if s == Nop {
 		return
 	}
-	s.writePacket(&packet.SetPlayerGameType{GameType: gameTypeFromMode(c.GameMode())})
+	mode := c.GameMode()
+	gameType := gameTypeFromMode(mode)
+	if id, ok := world.GameModeID(mode); ok && (id == 3 || id == 4) {
+		s.conf.Log.Info("faux spectator state trace", "stage", "send_game_mode", "mode_id", id, "game_type", gameType, "flying", c.Flying(), "has_collision", mode.HasCollision())
+	}
+	s.writePacket(&packet.SetPlayerGameType{GameType: gameType})
 	s.SendAbilities(c)
 }
 
@@ -584,6 +589,7 @@ func (s *Session) SendFauxSpectatorTransition(c Controllable) {
 		cmdPerm = protocol.CommandPermissionLevelGameDirectors
 		abilities |= protocol.AbilityOperatorCommands | protocol.AbilityTeleport
 	}
+	s.conf.Log.Info("faux spectator state trace", "stage", "forced_flight_before_noclip", "mode_id", 3, "flying", c.Flying(), "has_collision", c.GameMode().HasCollision(), "ability_values", fmt.Sprintf("%#x", abilities))
 	s.writePacket(&packet.UpdateAbilities{AbilityData: protocol.AbilityData{
 		EntityUniqueID:     selfEntityRuntimeID,
 		PlayerPermissions:  playerPerm,
@@ -625,6 +631,9 @@ func (s *Session) SendAbilities(c Controllable) {
 			Abilities: protocol.AbilityFlying,
 			Values:    protocol.AbilityFlying,
 		})
+	}
+	if id, ok := world.GameModeID(mode); ok && (id == 3 || id == 4) {
+		s.conf.Log.Info("faux spectator state trace", "stage", "send_abilities", "mode_id", id, "flying", c.Flying(), "has_collision", mode.HasCollision(), "ability_values", fmt.Sprintf("%#x", abilities), "layer_count", len(layers))
 	}
 	s.writePacket(&packet.UpdateAbilities{AbilityData: protocol.AbilityData{
 		EntityUniqueID:     selfEntityRuntimeID,
