@@ -1590,6 +1590,14 @@ func (p *Player) SetGameMode(mode world.GameMode) {
 		p.flying = true
 		p.onGround = false
 		p.ResetFallDistance()
+		if id, ok := world.GameModeID(mode); ok && id == 3 {
+			// PocketMine stages faux spectator instead of asking a grounded Creative
+			// client to accept forced flight and noclip simultaneously: forced flight
+			// first, then final collisionless abilities and their airborne reset before
+			// the final game-type sync below.
+			p.session().SendFauxSpectatorTransition(p)
+			p.session().SendAbilities(p)
+		}
 	}
 	if !mode.Visible() {
 		p.SetInvisible()

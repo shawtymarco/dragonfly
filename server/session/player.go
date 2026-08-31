@@ -565,17 +565,38 @@ func (s *Session) SendGameMode(c Controllable) {
 	if s == Nop {
 		return
 	}
-	if !c.GameMode().HasCollision() {
-		// Match the transition that already works when entering replay worlds:
-		// clear the client's grounded state before changing the Creative-presented
-		// faux spectator game type. SetPlayerGameType may otherwise preserve the
-		// standing Creative collision state and ignore the later noclip ability.
-		// SendAbilities sends a second reset after publishing noclip, bracketing the
-		// game-type/ability transition from both sides.
-		s.ViewEntityTeleport(c, c.Position())
-	}
 	s.writePacket(&packet.SetPlayerGameType{GameType: gameTypeFromMode(c.GameMode())})
 	s.SendAbilities(c)
+}
+
+// SendFauxSpectatorTransition starts PocketMine's staged spectator transition.
+// The client must first accept forced flight without noclip or a spectator layer;
+// publishing every final ability at once leaves a grounded Creative client waiting
+// for a manual double-jump before it applies collisionless movement.
+func (s *Session) SendFauxSpectatorTransition(c Controllable) {
+	if s == Nop {
+		return
+	}
+	abilities := fauxSpectatorTransitionAbilities(c.GameMode())
+	playerPerm, cmdPerm := byte(packet.PermissionLevelMember), byte(protocol.CommandPermissionLevelAny)
+	if o, ok := c.(interface{ Operator() bool }); ok && o.Operator() {
+		playerPerm = packet.PermissionLevelOperator
+		cmdPerm = protocol.CommandPermissionLevelGameDirectors
+		abilities |= protocol.AbilityOperatorCommands | protocol.AbilityTeleport
+	}
+	s.writePacket(&packet.UpdateAbilities{AbilityData: protocol.AbilityData{
+		EntityUniqueID:     selfEntityRuntimeID,
+		PlayerPermissions:  playerPerm,
+		CommandPermissions: cmdPerm,
+		Layers: []protocol.AbilityLayer{{
+			Type:             protocol.AbilityLayerTypeBase,
+			Abilities:        protocol.AbilityCount - 1,
+			Values:           abilities,
+			FlySpeed:         float32(c.FlightSpeed()),
+			VerticalFlySpeed: float32(c.VerticalFlightSpeed()),
+			WalkSpeed:        protocol.AbilityBaseWalkSpeed,
+		}},
+	}})
 }
 
 // SendAbilities sends the abilities of the Controllable entity of the session to the client.
@@ -612,12 +633,13 @@ func (s *Session) SendAbilities(c Controllable) {
 		Layers:             layers,
 	}})
 	if !mode.HasCollision() {
-		// Complete the grounded-state reset after noclip is active. SendGameMode also
-		// emits one reset before SetPlayerGameType: the first prevents the Creative
-		// transition from preserving a standing collision state, and this second one
-		// settles movement after the ability update.
+		// Clear the client's grounded state after noclip is active.
 		s.ViewEntityTeleport(c, c.Position())
 	}
+}
+
+func fauxSpectatorTransitionAbilities(mode world.GameMode) uint32 {
+	return gameModeAbilities(mode) | protocol.AbilityFlying
 }
 
 // abilityValues returns the base ability values advertised for mode, given

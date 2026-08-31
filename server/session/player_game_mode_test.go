@@ -58,6 +58,19 @@ func TestCollisionlessModesAdvertiseFlightImmediately(t *testing.T) {
 	}
 }
 
+func TestFauxSpectatorStagesFlightBeforeNoClip(t *testing.T) {
+	abilities := fauxSpectatorTransitionAbilities(world.GameModeSpectator)
+	if abilities&protocol.AbilityFlying == 0 {
+		t.Fatalf("transition abilities = %#x, missing forced flight", abilities)
+	}
+	if abilities&protocol.AbilityNoClip != 0 {
+		t.Fatalf("transition abilities = %#x, noclip must be introduced by the next stage", abilities)
+	}
+	if abilities&protocol.AbilityMayFly != 0 {
+		t.Fatalf("transition abilities = %#x, faux spectator must keep the client toggle locked", abilities)
+	}
+}
+
 // TestCollidingModesKeepFlightDrivenByState guards the other direction: a mode that
 // collides must not gain noclip, and its flight must still follow the player's own
 // toggle rather than being forced on.
