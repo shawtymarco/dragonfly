@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/df-mc/dragonfly/server/block"
 	"github.com/df-mc/dragonfly/server/block/cube"
@@ -9,13 +10,24 @@ import (
 	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/item/inventory"
 	"github.com/df-mc/dragonfly/server/world"
+	"github.com/go-gl/mathgl/mgl32"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
 // InventoryTransactionHandler handles the InventoryTransaction packet.
-type InventoryTransactionHandler struct{}
+type InventoryTransactionHandler struct {
+	lastRightClick     rightClickSignature
+	lastRightClickTime time.Time
+}
+
+type rightClickSignature struct {
+	face            int32
+	playerPosition  mgl32.Vec3
+	blockPosition   protocol.BlockPos
+	clickedPosition mgl32.Vec3
+}
 
 // Handle ...
 func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *world.Tx, c Controllable) (err error) {
@@ -231,12 +243,15 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 // handleUseItemTransaction ...
 func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.UseItemTransactionData, s *Session, tx *world.Tx, c Controllable) error {
 	pos := cube.Pos{int(data.BlockPosition[0]), int(data.BlockPosition[1]), int(data.BlockPosition[2])}
+	if data.ActionType == protocol.UseItemActionClickBlock && h.repeatedRightClick(data, time.Now()) {
+		return nil
+	}
 	var simulationTx *world.Tx
 	if data.ActionType == protocol.UseItemActionClickBlock {
 		simulationTx = tx
 	}
 	if (data.ActionType == protocol.UseItemActionClickBlock || data.ActionType == protocol.UseItemActionClickAir) &&
-		skipSimulationTick(data.TriggerType, c, simulationTx, pos) {
+		skipSimulationTick(data.ActionType, data.TriggerType, c, simulationTx, pos) {
 		return nil
 	}
 	if data.ClientPrediction == protocol.ClientPredictionSuccess || data.ActionType == protocol.UseItemActionBreakBlock {
@@ -258,14 +273,42 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 	return nil
 }
 
+// repeatedRightClick reports whether data has the exact signature emitted by
+// Bedrock's continued right-click spam. The 100 ms window and spatial epsilon
+// match PocketMine-MP: deliberate clicks at a new position continue normally,
+// while holding use against one block produces only the initial interaction.
+func (h *InventoryTransactionHandler) repeatedRightClick(data *protocol.UseItemTransactionData, now time.Time) bool {
+	current := rightClickSignature{
+		face:            data.BlockFace,
+		playerPosition:  data.Position,
+		blockPosition:   data.BlockPosition,
+		clickedPosition: data.ClickedPosition,
+	}
+	previous, previousTime := h.lastRightClick, h.lastRightClickTime
+	h.lastRightClick, h.lastRightClickTime = current, now
+	return !previousTime.IsZero() && now.Sub(previousTime) < 100*time.Millisecond &&
+		previous.face == current.face && previous.blockPosition == current.blockPosition &&
+		vec3DistanceSquared(previous.playerPosition, current.playerPosition) < 0.00001 &&
+		vec3DistanceSquared(previous.clickedPosition, current.clickedPosition) < 0.00001
+}
+
+func vec3DistanceSquared(a, b mgl32.Vec3) float32 {
+	delta := a.Sub(b)
+	return delta.Dot(delta)
+}
+
 // skipSimulationTick drops Bedrock hold-repeats. A real tap is UNKNOWN; the
-// client re-fires CLICK_BLOCK every tick as SIMULATION_TICK while the button
-// is held. Fishing rods and iron doors must not act on those repeats.
-func skipSimulationTick(trigger uint32, c Controllable, tx *world.Tx, pos cube.Pos) bool {
+// client re-fires use transactions as SIMULATION_TICK while the button is
+// held. Air use retains only consumption and active charging, while block use
+// keeps its existing fishing-rod and iron-door guards.
+func skipSimulationTick(action, trigger uint32, c Controllable, tx *world.Tx, pos cube.Pos) bool {
 	if trigger != protocol.TriggerTypeSimulationTick {
 		return false
 	}
 	held, _ := c.HeldItems()
+	if action == protocol.UseItemActionClickAir {
+		return skipAirSimulationTick(held, c.UsingItem())
+	}
 	if _, ok := held.Item().(item.FishingRod); ok {
 		return true
 	}
@@ -275,6 +318,22 @@ func skipSimulationTick(trigger uint32, c Controllable, tx *world.Tx, pos cube.P
 		}
 	}
 	return false
+}
+
+func skipAirSimulationTick(held item.Stack, using bool) bool {
+	switch held.Item().(type) {
+	case item.Consumable:
+		// Consumption completion is signalled by a hold-repeat.
+		return false
+	case item.Chargeable:
+		// An uncharged crossbow needs repeats until it reaches its charge
+		// duration. Once charging ends, a residual repeat must not fire it.
+		return !using
+	default:
+		// Releasable items finish through ReleaseItemTransaction. Plain
+		// items, including server controls, must activate once per press.
+		return true
+	}
 }
 
 // handleReleaseItemTransaction ...

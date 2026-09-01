@@ -1679,6 +1679,15 @@ func (p *Player) SetCooldown(item world.Item, cooldown time.Duration) {
 // This generally happens for items such as throwable items like snowballs.
 func (p *Player) UseItem() {
 	i, _ := p.HeldItems()
+	if p.usingItem {
+		if _, ok := i.Item().(item.Releasable); ok {
+			// Bedrock may repeat CLICK_AIR while the use button remains held.
+			// Releasable items are started once and finished exclusively by the
+			// matching release transaction, so a repeat must not reset the use
+			// duration or restart the client animation.
+			return
+		}
+	}
 	ctx := NewEventContext(p.tx, p)
 	if p.HasCooldown(i.Item()) {
 		return
@@ -1718,12 +1727,18 @@ func (p *Player) UseItem() {
 			return
 		}
 
-		// Stop charging and determine if the item is ready.
-		p.usingItem = false
+		// Determine if the item is ready without ending the charging state on
+		// an early Bedrock hold-repeat.
 		dur := p.useDuration()
-		if usable.Charge(p, p.tx, useCtx, dur) {
-			p.session().SendChargeItemComplete()
+		if !usable.Charge(p, p.tx, useCtx, dur) {
+			if !usable.CanCharge(p, p.tx, useCtx) {
+				p.usingItem = false
+				p.updateState()
+			}
+			return
 		}
+		p.usingItem = false
+		p.session().SendChargeItemComplete()
 		p.handleUseContext(useCtx)
 		p.updateState()
 	case item.Usable:
