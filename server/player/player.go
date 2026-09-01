@@ -587,7 +587,11 @@ func (p *Player) updateFallState(distanceThisTick float64) {
 			p.fall(p.fallDistance)
 		}
 		p.ResetFallDistance()
-	case distanceThisTick < 0 && distanceThisTick < p.fallDistance:
+	case distanceThisTick < p.fallDistance:
+		// Preserve the distance measured from the airborne apex when an
+		// external velocity briefly moves the player upwards. Only an ascent
+		// beyond that apex should reset the fall, matching vanilla/PMMP fall
+		// state semantics.
 		p.fallDistance -= distanceThisTick
 	default:
 		p.ResetFallDistance()
