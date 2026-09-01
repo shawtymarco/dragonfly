@@ -41,10 +41,13 @@ func TestSimulationTickAirUsePolicy(t *testing.T) {
 		want  bool
 	}{
 		{name: "plain control", stack: item.NewStack(item.Arrow{}, 1), want: true},
-		{name: "bow release", stack: item.NewStack(item.Bow{}, 1), using: true, want: true},
+		{name: "bow drawing", stack: item.NewStack(item.Bow{}, 1), using: true, want: true},
+		{name: "bow released while held", stack: item.NewStack(item.Bow{}, 1), want: false},
 		{name: "crossbow charging", stack: item.NewStack(item.Crossbow{}, 1), using: true, want: false},
-		{name: "crossbow charged", stack: item.NewStack(item.Crossbow{}, 1), want: true},
+		{name: "crossbow charged", stack: item.NewStack(item.Crossbow{Item: item.NewStack(item.Arrow{}, 1)}, 1), want: true},
+		{name: "crossbow fired while held", stack: item.NewStack(item.Crossbow{}, 1), want: false},
 		{name: "food consumption", stack: item.NewStack(item.Apple{}, 1), using: true, want: false},
+		{name: "next food after consumption", stack: item.NewStack(item.Apple{}, 1), want: false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

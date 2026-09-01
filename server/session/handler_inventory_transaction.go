@@ -321,17 +321,27 @@ func skipSimulationTick(action, trigger uint32, c Controllable, tx *world.Tx, po
 }
 
 func skipAirSimulationTick(held item.Stack, using bool) bool {
-	switch held.Item().(type) {
+	switch heldItem := held.Item().(type) {
 	case item.Consumable:
-		// Consumption completion is signalled by a hold-repeat.
+		// A repeat validates the consume duration. After a successful consume,
+		// the next repeat starts using the next item in the stack.
 		return false
 	case item.Chargeable:
-		// An uncharged crossbow needs repeats until it reaches its charge
-		// duration. Once charging ends, a residual repeat must not fire it.
-		return !using
+		if using {
+			return false
+		}
+		// Keep a completed charge from firing on its own residual repeat, but
+		// allow a held input to begin charging again after the shot emptied it.
+		if charged, ok := heldItem.(interface{ Charged() bool }); ok {
+			return charged.Charged()
+		}
+		return true
+	case item.Releasable:
+		// Repeats preserve an active release cycle. Once ReleaseItemTransaction
+		// ended it, a continued input may immediately start the next cycle.
+		return using
 	default:
-		// Releasable items finish through ReleaseItemTransaction. Plain
-		// items, including server controls, must activate once per press.
+		// Plain items, including server controls, activate once per press.
 		return true
 	}
 }

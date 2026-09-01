@@ -15,6 +15,9 @@ type Crossbow struct {
 	Item Stack
 }
 
+// Charged reports whether the crossbow currently contains a projectile.
+func (c Crossbow) Charged() bool { return !c.Item.Empty() }
+
 // Charge starts the charging process and checks if the charge duration meets
 // the required duration.
 func (c Crossbow) Charge(releaser Releaser, _ *world.Tx, ctx *UseContext, duration time.Duration) bool {

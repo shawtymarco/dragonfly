@@ -1688,12 +1688,15 @@ func (p *Player) UseItem() {
 			return
 		}
 	}
-	ctx := NewEventContext(p.tx, p)
+	continuing := p.usingItem && continuesItemUse(i.Item())
 	if p.HasCooldown(i.Item()) {
 		return
 	}
-	if p.Handler().HandleItemUse(ctx); ctx.Cancelled() {
-		return
+	if !continuing {
+		ctx := NewEventContext(p.tx, p)
+		if p.Handler().HandleItemUse(ctx); ctx.Cancelled() {
+			return
+		}
 	}
 	if !p.GameMode().HasCollision() {
 		// Faux spectator items may be handled by the server above, but must not
@@ -1703,8 +1706,10 @@ func (p *Player) UseItem() {
 	i, left := p.HeldItems()
 	it := i.Item()
 
-	if cd, ok := it.(item.Cooldown); ok {
-		p.SetCooldown(it, cd.Cooldown())
+	if !continuing {
+		if cd, ok := it.(item.Cooldown); ok {
+			p.SetCooldown(it, cd.Cooldown())
+		}
 	}
 
 	if _, ok := it.(item.Releasable); ok {
@@ -1768,22 +1773,33 @@ func (p *Player) UseItem() {
 			p.updateState()
 			return
 		}
-		// The player is currently using the item held. This is a signal the item was consumed, so we
-		// consume it and start using it again.
+		// The player is currently using the item held. Validate that it has
+		// reached the item's consume duration before completing this cycle.
 		useCtx, dur := p.useContext(), p.useDuration()
 		if dur < usable.ConsumeDuration() {
 			// The required duration for consuming this item was not met, so we don't consume it.
 			return
 		}
-		// Reset the duration for the next item to be consumed.
-		p.usingSince = time.Now()
 		ctx := NewEventContext(p.tx, p)
 		if p.Handler().HandleItemConsume(ctx, i); ctx.Cancelled() {
 			return
 		}
+		// A successful consumption completes this use cycle. If the input
+		// remains held, the next CLICK_AIR repeat starts the next stack item.
+		p.usingItem = false
 		useCtx.CountSub, useCtx.NewItem = 1, usable.Consume(p.tx, p)
 		p.handleUseContext(useCtx)
 		p.tx.PlaySound(p.Position().Add(mgl64.Vec3{0, 1.5}), sound.Burp{})
+		p.updateState()
+	}
+}
+
+func continuesItemUse(it world.Item) bool {
+	switch it.(type) {
+	case item.Chargeable, item.Consumable:
+		return true
+	default:
+		return false
 	}
 }
 
