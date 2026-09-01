@@ -21,6 +21,17 @@ type legacyTestRuntimeIDMapper struct {
 
 func (legacyTestRuntimeIDMapper) ReuseBiomePalettes() bool { return false }
 
+type protocol419TestRuntimeIDMapper struct {
+	testRuntimeIDMapper
+}
+
+func (protocol419TestRuntimeIDMapper) ReuseBiomePalettes() bool { return false }
+func (protocol419TestRuntimeIDMapper) NetworkChunkRange() (int16, int16) {
+	return 0, 255
+}
+func (protocol419TestRuntimeIDMapper) NetworkSubChunkVersion() byte { return 8 }
+func (protocol419TestRuntimeIDMapper) NetworkBiomes2D() bool        { return true }
+
 func TestRemapPalettedStorageDeduplicatesAndRepackages(t *testing.T) {
 	original := emptyStorage(10)
 	original.Set(0, 0, 0, 11)
@@ -90,6 +101,49 @@ func TestMappedEncodingCanDisableBiomePaletteReuse(t *testing.T) {
 	}
 	if !bytes.Equal(legacy[:len(legacy)/2], legacy[len(legacy)/2:]) {
 		t.Fatalf("legacy biomes did not encode both equal palettes: %v", legacy)
+	}
+}
+
+func TestConfiguredNetworkChunkUsesLegacyRangeVersionAndBiomes(t *testing.T) {
+	column := New(mappingTestBlockRegistry{}, cube.Range{-64, 319})
+	column.SetBlock(0, -64, 0, 0, 10)
+	column.SetBlock(0, 0, 0, 0, 10)
+	column.SetBlock(0, 31, 0, 0, 10)
+	column.SetBlock(0, 256, 0, 0, 10)
+	column.SetBiome(0, 31, 0, 7)
+
+	encoding := NetworkEncodingWithBlockMapper(protocol419TestRuntimeIDMapper{testRuntimeIDMapper{0: 0, 10: 1}})
+	data := Encode(column, encoding)
+	if got, want := len(data.SubChunks), 2; got != want {
+		t.Fatalf("legacy sub-chunk count: got %d, want %d", got, want)
+	}
+	for index, encoded := range data.SubChunks {
+		if len(encoded) < 3 || encoded[0] != 8 || encoded[1] == 0 {
+			t.Fatalf("legacy sub-chunk %d header: %x", index, encoded)
+		}
+	}
+	if got, want := len(data.Biomes), 256; got != want {
+		t.Fatalf("legacy biome length: got %d, want %d", got, want)
+	}
+	if got := data.Biomes[0]; got != 7 {
+		t.Fatalf("surface biome: got %d, want 7", got)
+	}
+	if got := column.Block(0, -64, 0, 0); got != 10 {
+		t.Fatalf("configured encoding mutated live chunk: got %d, want 10", got)
+	}
+}
+
+func TestConfiguredNetworkChunkIncludesTargetCeiling(t *testing.T) {
+	column := New(mappingTestBlockRegistry{}, cube.Range{-64, 319})
+	column.SetBlock(0, 255, 0, 0, 10)
+	column.SetBlock(0, 256, 0, 0, 10)
+	encoding := NetworkEncodingWithBlockMapper(protocol419TestRuntimeIDMapper{testRuntimeIDMapper{0: 0, 10: 1}})
+	data := Encode(column, encoding)
+	if got, want := len(data.SubChunks), 16; got != want {
+		t.Fatalf("legacy ceiling sub-chunk count: got %d, want %d", got, want)
+	}
+	if got := data.SubChunks[len(data.SubChunks)-1][0]; got != 8 {
+		t.Fatalf("legacy ceiling version: got %d, want 8", got)
 	}
 }
 

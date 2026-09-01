@@ -50,6 +50,14 @@ type BiomePaletteReuseController interface {
 	ReuseBiomePalettes() bool
 }
 
+// NetworkChunkFormatController describes a connection's historical chunk payload shape. Implementations must return
+// a 16-block-aligned inclusive range and a valid sub-chunk version. Native connections do not implement this interface.
+type NetworkChunkFormatController interface {
+	NetworkChunkRange() (minY, maxY int16)
+	NetworkSubChunkVersion() byte
+	NetworkBiomes2D() bool
+}
+
 // NetworkEncodingWithBlockMapper returns a network encoding that maps block
 // palettes before packing them. Biome palettes remain unchanged.
 func NetworkEncodingWithBlockMapper(mapper BlockRuntimeIDMapper) Encoding {
@@ -60,7 +68,11 @@ func NetworkEncodingWithBlockMapper(mapper BlockRuntimeIDMapper) Encoding {
 	if controller, ok := mapper.(BiomePaletteReuseController); ok {
 		reuseBiomePalettes = controller.ReuseBiomePalettes()
 	}
-	return mappedNetworkEncoding{mapper: mapper, reuseBiomePalettes: reuseBiomePalettes}
+	encoding := mappedNetworkEncoding{mapper: mapper, reuseBiomePalettes: reuseBiomePalettes}
+	if controller, ok := mapper.(NetworkChunkFormatController); ok {
+		encoding.format = controller
+	}
+	return encoding
 }
 
 // biomePaletteEncoding implements the encoding of biome palettes to disk.
@@ -237,6 +249,7 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 type mappedNetworkEncoding struct {
 	mapper             BlockRuntimeIDMapper
 	reuseBiomePalettes bool
+	format             NetworkChunkFormatController
 }
 
 func (mappedNetworkEncoding) network() byte { return 1 }
@@ -256,4 +269,8 @@ func (encoding mappedNetworkEncoding) mapStorage(storage *PalettedStorage, palet
 
 func (encoding mappedNetworkEncoding) canReuseBiomePalettes() bool {
 	return encoding.reuseBiomePalettes
+}
+
+func (encoding mappedNetworkEncoding) networkChunkFormat() (NetworkChunkFormatController, bool) {
+	return encoding.format, encoding.format != nil
 }
