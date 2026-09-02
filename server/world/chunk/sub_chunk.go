@@ -97,7 +97,7 @@ func (sub *SubChunk) SetBlock(x, y, z byte, layer uint8, block uint32) {
 
 // SetBlockLight sets the block light value at a specific position in the sub chunk.
 func (sub *SubChunk) SetBlockLight(x, y, z byte, level uint8) {
-	if ptr := &sub.blockLight[0]; ptr == noLightPtr {
+	if ptr := &sub.blockLight[0]; ptr == noLightPtr || ptr == fullLightPtr {
 		// Copy the block light as soon as it is changed to create a COW system.
 		sub.blockLight = append([]byte(nil), sub.blockLight...)
 	}

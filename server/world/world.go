@@ -1418,7 +1418,11 @@ func (w *World) loadChunk(pos ChunkPos) (*chunk.Column, error) {
 		w.conf.Generator.GenerateChunk(pos, ch)
 		column = &chunk.Column{Chunk: ch}
 	}
-	chunk.LightArea([]*chunk.Chunk{column.Chunk}, int(pos[0]), int(pos[1])).Fill()
+	if w.conf.FixedLightLevel == 0 {
+		chunk.LightArea([]*chunk.Chunk{column.Chunk}, int(pos[0]), int(pos[1])).Fill()
+	} else {
+		chunk.FillLight(column.Chunk, w.conf.FixedLightLevel)
+	}
 	return column, nil
 }
 
@@ -1463,7 +1467,9 @@ func (w *World) addChunk(pos ChunkPos, c *chunk.Column) *Column {
 		e.setAndUnlockWorld(w)
 		e.markWorldReady(w)
 	}
-	w.calculateLight(pos)
+	if w.conf.FixedLightLevel == 0 {
+		w.calculateLight(pos)
+	}
 	return column
 }
 

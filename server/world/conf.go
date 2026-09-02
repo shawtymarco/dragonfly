@@ -53,6 +53,11 @@ type Config struct {
 	// chunks, defaulting to 1. Values above 1 generate chunks concurrently and
 	// require a concurrency-safe Generator.
 	ChunkLoadWorkers int
+	// FixedLightLevel replaces terrain-derived sky and block light with a
+	// uniform level from 1 through 15. Zero keeps normal light filling and
+	// cross-chunk spreading. This is intended for static authored worlds where
+	// uniform lighting is an explicit presentation choice.
+	FixedLightLevel uint8
 	// RandomTickSpeed specifies the rate at which blocks should be ticked in
 	// the World. By default, each sub chunk has 3 blocks randomly ticked per
 	// sub chunk, so the default value is 3. Setting this value to -1 or lower
@@ -122,6 +127,9 @@ func (conf Config) New() *World {
 	}
 	if conf.ChunkLoadWorkers <= 0 {
 		conf.ChunkLoadWorkers = defaultChunkLoadWorkers
+	}
+	if conf.FixedLightLevel > 15 {
+		panic("world: fixed light level must be between 0 and 15")
 	}
 	if conf.Generator == nil {
 		conf.Generator = NopGenerator{}

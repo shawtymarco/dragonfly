@@ -245,6 +245,31 @@ var (
 	noLightPtr   = &noLight[0]
 )
 
+// FillLight replaces all sky and block light in c with a uniform level. The
+// level must be between 0 and 15. Shared zero/full arrays use copy-on-write in
+// SubChunk setters so later explicit light changes remain isolated.
+func FillLight(c *Chunk, level uint8) {
+	if level > 15 {
+		panic("chunk: light level must be between 0 and 15")
+	}
+	for _, sub := range c.sub {
+		sub.skyLight = uniformLight(level)
+		sub.blockLight = uniformLight(level)
+	}
+}
+
+func uniformLight(level uint8) []uint8 {
+	switch level {
+	case 0:
+		return noLight
+	case 15:
+		return fullLight
+	default:
+		value := level | level<<4
+		return bytes.Repeat([]byte{value}, 2048)
+	}
+}
+
 // initialiseLightSlices initialises all light slices in the sub chunks of all chunks either with full light if there is
 // no sub chunk with any blocks above it, or with empty light if there is. The sub chunks with empty light are then
 // ready to be properly calculated.
