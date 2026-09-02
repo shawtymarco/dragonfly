@@ -191,9 +191,14 @@ type Config struct {
 }
 
 func (conf Config) New(conn Conn) *Session {
+	var networkProtocol minecraft.Protocol
+	if provider, ok := conn.(interface{ Proto() minecraft.Protocol }); ok {
+		networkProtocol = provider.Proto()
+	}
+	maxChunkRadius := maxChunkRadiusForProtocol(conf.MaxChunkRadius, networkProtocol)
 	r := conn.ChunkRadius()
-	if r > conf.MaxChunkRadius {
-		r = conf.MaxChunkRadius
+	if r > maxChunkRadius {
+		r = maxChunkRadius
 		_ = conn.WritePacket(&packet.ChunkRadiusUpdated{ChunkRadius: int32(r)})
 	}
 	if conf.Log == nil {
@@ -202,8 +207,8 @@ func (conf Config) New(conn Conn) *Session {
 	conf.Log = conf.Log.With("name", conn.IdentityData().DisplayName, "uuid", conn.IdentityData().Identity, "raddr", conn.RemoteAddr().String())
 
 	networkEncoding := chunk.Encoding(chunk.NetworkEncoding)
-	if provider, ok := conn.(interface{ Proto() minecraft.Protocol }); ok {
-		if mapper, ok := provider.Proto().(chunk.BlockRuntimeIDMapper); ok {
+	if networkProtocol != nil {
+		if mapper, ok := networkProtocol.(chunk.BlockRuntimeIDMapper); ok {
 			networkEncoding = chunk.NetworkEncodingWithBlockMapper(mapper)
 		}
 	}
@@ -219,7 +224,7 @@ func (conf Config) New(conn Conn) *Session {
 		hiddenEntities:         map[uuid.UUID]struct{}{},
 		blobs:                  map[uint64][]byte{},
 		chunkRadius:            int32(r),
-		maxChunkRadius:         int32(conf.MaxChunkRadius),
+		maxChunkRadius:         int32(maxChunkRadius),
 		subChunkRequests:       !conf.DisableSubChunkRequests,
 		emoteChatMuted:         conf.EmoteChatMuted,
 		conn:                   conn,
@@ -274,6 +279,15 @@ func (conf Config) New(conn Conn) *Session {
 		}
 	}()
 	return s
+}
+
+func maxChunkRadiusForProtocol(configured int, networkProtocol minecraft.Protocol) int {
+	if limiter, ok := networkProtocol.(interface{ NetworkChunkRadiusLimit() int }); ok {
+		if limit := limiter.NetworkChunkRadiusLimit(); limit > 0 && limit < configured {
+			return limit
+		}
+	}
+	return configured
 }
 
 // SetHandle sets the world.EntityHandle of the Session and attaches a skin to
