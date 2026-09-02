@@ -467,6 +467,17 @@ func TestNoteBlockPlaysOnRedstoneRisingEdgeOnly(t *testing.T) {
 	}
 }
 
+func TestNoteBlockNBTIncludesBlockActorID(t *testing.T) {
+	encoded := (Note{Pitch: 7, Powered: true}).EncodeNBT()
+	if encoded["id"] != "Music" {
+		t.Fatalf("note block actor ID = %#v, want Music", encoded["id"])
+	}
+	decoded := (Note{}).DecodeNBT(encoded).(Note)
+	if decoded.Pitch != 7 || !decoded.Powered {
+		t.Fatalf("decoded note block = %#v", decoded)
+	}
+}
+
 func TestTNTDoesNotConductRedstonePower(t *testing.T) {
 	w := world.Config{Synchronous: true}.New()
 	defer w.Close()

@@ -45,7 +45,7 @@ func (n Note) DecodeNBT(data map[string]any) any {
 }
 
 func (n Note) EncodeNBT() map[string]any {
-	return map[string]any{"note": byte(n.Pitch), "powered": boolByte(n.Powered)}
+	return map[string]any{"id": "Music", "note": byte(n.Pitch), "powered": boolByte(n.Powered)}
 }
 
 func (n Note) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, _ item.User, _ *item.UseContext) bool {
