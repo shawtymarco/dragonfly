@@ -29,6 +29,24 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 		// Don't do anything for these actions.
 	case protocol.PlayerActionStopSleeping:
 		c.Wake()
+	case protocol.PlayerActionJump:
+		c.Jump()
+	case protocol.PlayerActionStartSprint:
+		c.StartSprinting()
+	case protocol.PlayerActionStopSprint:
+		c.StopSprinting()
+	case protocol.PlayerActionStartSneak:
+		c.StartSneaking()
+	case protocol.PlayerActionStopSneak:
+		c.StopSneaking()
+	case protocol.PlayerActionStartSwimming:
+		c.StartSwimming()
+	case protocol.PlayerActionStopSwimming:
+		c.StopSwimming()
+	case protocol.PlayerActionStartGlide:
+		c.StartGliding()
+	case protocol.PlayerActionStopGlide:
+		c.StopGliding()
 	case protocol.PlayerActionStartBreak, protocol.PlayerActionContinueDestroyBlock:
 		s.swingingArm.Store(true)
 		defer s.swingingArm.Store(false)
