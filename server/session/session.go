@@ -96,6 +96,7 @@ type Session struct {
 	blobMu                sync.Mutex
 	blobs                 map[uint64][]byte
 	openChunkTransactions []map[uint64]struct{}
+	chunkTransactions     map[world.ChunkPos]map[uint64]struct{}
 	invOpened             bool
 
 	hudMu      sync.RWMutex
@@ -223,6 +224,7 @@ func (conf Config) New(conn Conn) *Session {
 		entities:               map[uint64]*world.EntityHandle{},
 		hiddenEntities:         map[uuid.UUID]struct{}{},
 		blobs:                  map[uint64][]byte{},
+		chunkTransactions:      map[world.ChunkPos]map[uint64]struct{}{},
 		chunkRadius:            int32(r),
 		maxChunkRadius:         int32(maxChunkRadius),
 		subChunkRequests:       !conf.DisableSubChunkRequests,
@@ -565,12 +567,13 @@ func (s *Session) sendChunks(tx *world.Tx, c Controllable) {
 
 // handleWorldSwitch handles the player of the Session switching worlds.
 func (s *Session) handleWorldSwitch(w *world.World, tx *world.Tx, c Controllable) {
+	s.blobMu.Lock()
 	if s.conn.ClientCacheEnabled() {
-		s.blobMu.Lock()
 		s.blobs = map[uint64][]byte{}
 		s.openChunkTransactions = nil
-		s.blobMu.Unlock()
 	}
+	s.chunkTransactions = map[world.ChunkPos]map[uint64]struct{}{}
+	s.blobMu.Unlock()
 
 	dim, _ := world.DimensionID(w.Dimension())
 	same := w.Dimension() == s.chunkLoader.World().Dimension()
@@ -613,6 +616,27 @@ func (s *Session) ChangingDimension() bool {
 // ChunkRadius returns the chunk radius of the session.
 func (s *Session) ChunkRadius() int32 {
 	return s.chunkRadius
+}
+
+// ChunkVisible reports whether the session has delivered a chunk from w to its
+// viewer and, when the client cache is enabled, resolved every cache hash needed
+// for that chunk. A true result guarantees that the corresponding chunk or
+// cache-miss packets were queued before a later session state update.
+func (s *Session) ChunkVisible(w *world.World, pos world.ChunkPos) bool {
+	loader := s.chunkLoader
+	if loader == nil || loader.World() != w {
+		return false
+	}
+	if _, ok := loader.Chunk(pos); !ok {
+		return false
+	}
+	if s.conn == nil || !s.conn.ClientCacheEnabled() {
+		return true
+	}
+	s.blobMu.Lock()
+	_, pending := s.chunkTransactions[pos]
+	s.blobMu.Unlock()
+	return !pending
 }
 
 // handlePacket handles an incoming packet, processing it accordingly. If the packet had invalid data or was

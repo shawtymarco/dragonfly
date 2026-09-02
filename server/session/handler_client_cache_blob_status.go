@@ -13,6 +13,7 @@ type ClientCacheBlobStatusHandler struct {
 // Handle ...
 func (c *ClientCacheBlobStatusHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, _ Controllable) error {
 	pk := p.(*packet.ClientCacheBlobStatus)
+	resolved := make([]uint64, 0, len(pk.HitHashes)+len(pk.MissHashes))
 
 	resp := &packet.ClientCacheMissResponse{Blobs: make([]protocol.CacheBlob, 0, len(pk.MissHashes))}
 
@@ -20,6 +21,7 @@ func (c *ClientCacheBlobStatusHandler) Handle(p packet.Packet, s *Session, _ *wo
 	for _, hit := range pk.HitHashes {
 		delete(s.blobs, hit)
 		c.resolveBlob(hit, s)
+		resolved = append(resolved, hit)
 	}
 	for _, miss := range pk.MissHashes {
 		blob, ok := s.blobs[miss]
@@ -31,12 +33,14 @@ func (c *ClientCacheBlobStatusHandler) Handle(p packet.Packet, s *Session, _ *wo
 		}
 		resp.Blobs = append(resp.Blobs, protocol.CacheBlob{Hash: miss, Payload: blob})
 		c.resolveBlob(miss, s)
+		resolved = append(resolved, miss)
 	}
 	s.blobMu.Unlock()
 
 	if len(resp.Blobs) > 0 {
 		s.writePacket(resp)
 	}
+	s.resolveChunkTransactions(resolved)
 	return nil
 }
 

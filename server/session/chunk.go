@@ -2,6 +2,7 @@ package session
 
 import (
 	"bytes"
+	"maps"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/df-mc/dragonfly/server/block"
@@ -144,6 +145,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 	if s.subChunkRequests {
 		biomes := chunk.EncodeBiomes(c, s.chunkEncoding)
 		if hash := xxhash.Sum64(biomes); s.trackBlob(hash, biomes) {
+			s.trackChunkTransaction(pos, map[uint64]struct{}{hash: {}})
 			s.writePacket(&packet.LevelChunk{
 				Dimension:     s.dimensionID(dim),
 				SubChunkCount: 0,
@@ -176,6 +178,10 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 		s.conf.Log.Error("too many blobs pending", "n", l)
 		return
 	}
+	if s.chunkTransactions == nil {
+		s.chunkTransactions = make(map[world.ChunkPos]map[uint64]struct{})
+	}
+	s.chunkTransactions[pos] = maps.Clone(m)
 	for i := range hashes {
 		s.blobs[hashes[i]] = blobs[i]
 	}
@@ -200,6 +206,28 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 		BlobHashes:    hashes,
 		RawPayload:    raw.Bytes(),
 	})
+}
+
+func (s *Session) trackChunkTransaction(pos world.ChunkPos, hashes map[uint64]struct{}) {
+	s.blobMu.Lock()
+	if s.chunkTransactions == nil {
+		s.chunkTransactions = make(map[world.ChunkPos]map[uint64]struct{})
+	}
+	s.chunkTransactions[pos] = maps.Clone(hashes)
+	s.blobMu.Unlock()
+}
+
+func (s *Session) resolveChunkTransactions(hashes []uint64) {
+	s.blobMu.Lock()
+	defer s.blobMu.Unlock()
+	for pos, transaction := range s.chunkTransactions {
+		for _, hash := range hashes {
+			delete(transaction, hash)
+		}
+		if len(transaction) == 0 {
+			delete(s.chunkTransactions, pos)
+		}
+	}
 }
 
 // sendNetworkChunk sends a network encoded chunk to the client.

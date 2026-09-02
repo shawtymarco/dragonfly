@@ -3731,6 +3731,16 @@ func (p *Player) QueuePacketTraceFeedback(id uint64, role uint8) {
 	p.session().QueuePacketTraceFeedback(id, role)
 }
 
+// ChunkVisible reports whether the player's session has finished delivering a
+// chunk from the player's current world. It returns false for players without a
+// network session.
+func (p *Player) ChunkVisible(pos world.ChunkPos) bool {
+	if p.tx == nil || p.session() == session.Nop {
+		return false
+	}
+	return p.session().ChunkVisible(p.tx.World(), pos)
+}
+
 // useContext returns an item.UseContext initialised for a Player.
 func (p *Player) useContext() *item.UseContext {
 	call := func(ctx *inventory.Context, slot int, it item.Stack, f func(ctx *inventory.Context, slot int, it item.Stack)) error {
