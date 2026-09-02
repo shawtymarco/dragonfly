@@ -12,13 +12,10 @@ type RequestChunkRadiusHandler struct{}
 func (*RequestChunkRadiusHandler) Handle(p packet.Packet, s *Session, tx *world.Tx, _ Controllable) error {
 	pk := p.(*packet.RequestChunkRadius)
 
-	if pk.ChunkRadius > s.maxChunkRadius {
-		pk.ChunkRadius = s.maxChunkRadius
-	}
-	s.chunkRadius = pk.ChunkRadius
-
-	s.chunkLoader.ChangeRadius(tx, int(pk.ChunkRadius))
-
-	s.writePacket(&packet.ChunkRadiusUpdated{ChunkRadius: s.chunkRadius})
+	s.requestedChunkRadius = pk.ChunkRadius
+	radius := effectiveChunkRadius(pk.ChunkRadius, s.maxChunkRadius)
+	s.chunkRadius = radius
+	s.chunkLoader.ChangeRadius(tx, int(radius))
+	s.writePacket(&packet.ChunkRadiusUpdated{ChunkRadius: radius})
 	return nil
 }

@@ -33,3 +33,23 @@ func TestMaxChunkRadiusForProtocol(t *testing.T) {
 		})
 	}
 }
+
+func TestEffectiveChunkRadius(t *testing.T) {
+	tests := []struct {
+		name               string
+		requested, maximum int32
+		want               int32
+	}{
+		{name: "request below policy", requested: 4, maximum: 10, want: 4},
+		{name: "request at policy", requested: 4, maximum: 4, want: 4},
+		{name: "request above policy", requested: 10, maximum: 4, want: 4},
+		{name: "protocol maximum", requested: 10, maximum: 9, want: 9},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := effectiveChunkRadius(test.requested, test.maximum); got != test.want {
+				t.Fatalf("effective chunk radius = %d, want %d", got, test.want)
+			}
+		})
+	}
+}

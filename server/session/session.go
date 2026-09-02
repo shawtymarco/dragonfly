@@ -47,9 +47,10 @@ type Session struct {
 	currentScoreboard atomic.Pointer[string]
 	currentLines      atomic.Pointer[[]string]
 
-	chunkLoader                 *world.Loader
-	chunkRadius, maxChunkRadius int32
-	subChunkRequests            bool
+	chunkLoader                                       *world.Loader
+	chunkRadius, requestedChunkRadius, maxChunkRadius int32
+	networkMaxChunkRadius                             int32
+	subChunkRequests                                  bool
 
 	emoteChatMuted bool
 
@@ -197,7 +198,8 @@ func (conf Config) New(conn Conn) *Session {
 		networkProtocol = provider.Proto()
 	}
 	maxChunkRadius := maxChunkRadiusForProtocol(conf.MaxChunkRadius, networkProtocol)
-	r := conn.ChunkRadius()
+	requestedChunkRadius := conn.ChunkRadius()
+	r := requestedChunkRadius
 	if r > maxChunkRadius {
 		r = maxChunkRadius
 		_ = conn.WritePacket(&packet.ChunkRadiusUpdated{ChunkRadius: int32(r)})
@@ -226,7 +228,9 @@ func (conf Config) New(conn Conn) *Session {
 		blobs:                  map[uint64][]byte{},
 		chunkTransactions:      map[world.ChunkPos]map[uint64]struct{}{},
 		chunkRadius:            int32(r),
+		requestedChunkRadius:   int32(requestedChunkRadius),
 		maxChunkRadius:         int32(maxChunkRadius),
+		networkMaxChunkRadius:  int32(maxChunkRadius),
 		subChunkRequests:       !conf.DisableSubChunkRequests,
 		emoteChatMuted:         conf.EmoteChatMuted,
 		conn:                   conn,
@@ -616,6 +620,42 @@ func (s *Session) ChangingDimension() bool {
 // ChunkRadius returns the chunk radius of the session.
 func (s *Session) ChunkRadius() int32 {
 	return s.chunkRadius
+}
+
+// SetChunkRadiusLimit changes the server policy limit for this session and
+// returns the effective radius. A non-positive limit restores the configured,
+// protocol-aware maximum. The client's latest requested radius is retained so
+// raising the policy later restores it without exceeding a protocol cap.
+//
+// SetChunkRadiusLimit must be called from the owner transaction of the world
+// currently holding the session's controllable.
+func (s *Session) SetChunkRadiusLimit(tx *world.Tx, limit int) int32 {
+	maximum := s.networkMaxChunkRadius
+	if maximum <= 0 {
+		maximum = s.maxChunkRadius
+	}
+	if limit > 0 && int32(limit) < maximum {
+		s.maxChunkRadius = int32(limit)
+	} else {
+		s.maxChunkRadius = maximum
+	}
+	radius := effectiveChunkRadius(s.requestedChunkRadius, s.maxChunkRadius)
+	if radius == s.chunkRadius {
+		return radius
+	}
+	s.chunkRadius = radius
+	if s.chunkLoader != nil {
+		s.chunkLoader.ChangeRadius(tx, int(radius))
+	}
+	s.writePacket(&packet.ChunkRadiusUpdated{ChunkRadius: radius})
+	return radius
+}
+
+func effectiveChunkRadius(requested, maximum int32) int32 {
+	if requested > maximum {
+		return maximum
+	}
+	return requested
 }
 
 // ChunkVisible reports whether the session has delivered a chunk from w to its
