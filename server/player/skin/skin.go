@@ -3,6 +3,8 @@ package skin
 import (
 	"image"
 	"image/color"
+
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
 // Skin holds the data of a skin that a player has equipped. It includes geometry data, the texture and the
@@ -14,6 +16,24 @@ type Skin struct {
 	Persona   bool
 	PlayFabID string
 	FullID    string
+	// Premium specifies if the skin originates from paid Marketplace content.
+	Premium bool
+	// PersonaCapeOnClassic specifies if a persona cape is equipped on a classic skin.
+	PersonaCapeOnClassic bool
+	// CapeID identifies the cape selected by the client.
+	CapeID string
+	// ArmSize and SkinColour preserve persona appearance metadata.
+	ArmSize    uint8
+	SkinColour color.RGBA
+	// PersonaPieces and PieceTintColours preserve the complete character-creator
+	// composition. Dropping these fields makes some valid persona skins render as Steve.
+	PersonaPieces    []protocol.PersonaPiece
+	PieceTintColours []protocol.PersonaPieceTintColour
+	// AnimationData, GeometryDataEngineVersion, and ProfileHash are opaque client
+	// metadata that must survive a server-side skin or cape refresh.
+	AnimationData             []byte
+	GeometryDataEngineVersion []byte
+	ProfileHash               string
 
 	// Pix holds the raw pixel data of the skin. This is an RGBA byte slice, meaning that every first byte is
 	// a Red value, the second a Green value, the third a Blue value and the fourth an Alpha value.

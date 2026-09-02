@@ -5,12 +5,14 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"fmt"
+	"image/color"
 	"iter"
 	"maps"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -705,6 +707,19 @@ func (srv *Server) parseSkin(data login.ClientData) skin.Skin {
 	playerSkin.ModelConfig, _ = skin.DecodeModelConfig(skinResourcePatch)
 	playerSkin.PlayFabID = data.PlayFabID
 	playerSkin.FullID = data.SkinID
+	playerSkin.Premium = data.PremiumSkin
+	playerSkin.PersonaCapeOnClassic = data.CapeOnClassicSkin
+	playerSkin.CapeID = data.CapeID
+	playerSkin.ArmSize = protocol.ArmSizeSlim
+	if strings.EqualFold(data.ArmSize, "wide") {
+		playerSkin.ArmSize = protocol.ArmSizeWide
+	}
+	playerSkin.SkinColour = parseSkinColour(data.SkinColour, false)
+	playerSkin.PersonaPieces = personaPiecesFromLogin(data.PersonaPieces)
+	playerSkin.PieceTintColours = personaTintsFromLogin(data.PieceTintColours)
+	playerSkin.AnimationData, _ = base64.StdEncoding.DecodeString(data.SkinAnimationData)
+	playerSkin.GeometryDataEngineVersion, _ = base64.StdEncoding.DecodeString(data.SkinGeometryVersion)
+	playerSkin.ProfileHash = data.ProfileHash
 
 	playerSkin.Cape = skin.NewCape(data.CapeImageWidth, data.CapeImageHeight)
 	playerSkin.Cape.Pix, _ = base64.StdEncoding.DecodeString(data.CapeData)
@@ -728,6 +743,108 @@ func (srv *Server) parseSkin(data login.ClientData) skin.Skin {
 	}
 
 	return playerSkin
+}
+
+func personaPiecesFromLogin(pieces []login.PersonaPiece) []protocol.PersonaPiece {
+	converted := make([]protocol.PersonaPiece, 0, len(pieces))
+	for _, piece := range pieces {
+		packID, _ := uuid.Parse(piece.PackID)
+		converted = append(converted, protocol.PersonaPiece{
+			PieceID: piece.PieceID, PieceType: personaPieceType(piece.PieceType), PackID: packID,
+			Default: piece.Default, ProductID: piece.ProductID,
+		})
+	}
+	return converted
+}
+
+func personaTintsFromLogin(tints []login.PersonaPieceTintColour) []protocol.PersonaPieceTintColour {
+	converted := make([]protocol.PersonaPieceTintColour, 0, len(tints))
+	for _, tint := range tints {
+		colours := [4]color.RGBA{}
+		for index, value := range tint.Colours {
+			colours[index] = parseSkinColour(value, true)
+		}
+		converted = append(converted, protocol.PersonaPieceTintColour{PieceType: tint.PieceType, Colours: colours})
+	}
+	return converted
+}
+
+func personaPieceType(pieceType string) uint32 {
+	switch strings.TrimPrefix(strings.ToLower(pieceType), "persona_") {
+	case "skeleton":
+		return protocol.PieceTypeSkeleton
+	case "body":
+		return protocol.PieceTypeBody
+	case "skin":
+		return protocol.PieceTypeSkin
+	case "bottom":
+		return protocol.PieceTypeBottom
+	case "feet":
+		return protocol.PieceTypeFeet
+	case "dress":
+		return protocol.PieceTypeDress
+	case "top":
+		return protocol.PieceTypeTop
+	case "high_pants":
+		return protocol.PieceTypeHighPants
+	case "hand", "hands":
+		return protocol.PieceTypeHands
+	case "outerwear":
+		return protocol.PieceTypeOuterwear
+	case "facial_hair":
+		return protocol.PieceTypeFacialHair
+	case "mouth":
+		return protocol.PieceTypeMouth
+	case "eyes":
+		return protocol.PieceTypeEyes
+	case "hair":
+		return protocol.PieceTypeHair
+	case "hood":
+		return protocol.PieceTypeHood
+	case "back":
+		return protocol.PieceTypeBack
+	case "face_accessory":
+		return protocol.PieceTypeFaceAccessory
+	case "head":
+		return protocol.PieceTypeHead
+	case "legs":
+		return protocol.PieceTypeLegs
+	case "left_leg":
+		return protocol.PieceTypeLeftLeg
+	case "right_leg":
+		return protocol.PieceTypeRightLeg
+	case "arms":
+		return protocol.PieceTypeArms
+	case "left_arm":
+		return protocol.PieceTypeLeftArm
+	case "right_arm":
+		return protocol.PieceTypeRightArm
+	case "capes":
+		return protocol.PieceTypeCapes
+	case "classic_skin":
+		return protocol.PieceTypeClassicSkin
+	case "emote":
+		return protocol.PieceTypeEmote
+	case "unsupported":
+		return protocol.PieceTypeUnsupported
+	default:
+		return protocol.PieceTypeUnknown
+	}
+}
+
+func parseSkinColour(value string, alphaFirst bool) color.RGBA {
+	hex := strings.TrimPrefix(value, "#")
+	if hex == "" || hex == "0" {
+		return color.RGBA{}
+	}
+	parsed, err := strconv.ParseUint(hex, 16, 32)
+	if err != nil {
+		return color.RGBA{}
+	}
+	if alphaFirst || len(hex) == 8 {
+		return color.RGBA{R: uint8(parsed >> 16), G: uint8(parsed >> 8), B: uint8(parsed), A: uint8(parsed >> 24)}
+	}
+	return color.RGBA{R: uint8(parsed >> 16), G: uint8(parsed >> 8), B: uint8(parsed), A: 0xff}
 }
 
 // vec64To32 converts a mgl64.Vec3 to a mgl32.Vec3.

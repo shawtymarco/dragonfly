@@ -134,6 +134,14 @@ func skinToProtocol(s skin.Skin) protocol.Skin {
 	if len(model) == 0 {
 		model = []byte("{}")
 	}
+	capeID := s.CapeID
+	if capeID == "" {
+		capeID = uuid.New().String()
+	}
+	geometryVersion := s.GeometryDataEngineVersion
+	if len(geometryVersion) == 0 {
+		geometryVersion = []byte(protocol.CurrentVersion)
+	}
 	return protocol.Skin{
 		PlayFabID:                 s.PlayFabID,
 		SkinID:                    uuid.New().String(),
@@ -145,12 +153,20 @@ func skinToProtocol(s skin.Skin) protocol.Skin {
 		CapeImageHeight:           uint32(s.Cape.Bounds().Max.Y),
 		CapeData:                  s.Cape.Pix,
 		SkinGeometry:              model,
+		AnimationData:             slices.Clone(s.AnimationData),
 		PersonaSkin:               s.Persona,
-		CapeID:                    uuid.New().String(),
+		PremiumSkin:               s.Premium,
+		PersonaCapeOnClassicSkin:  s.PersonaCapeOnClassic,
+		CapeID:                    capeID,
 		FullID:                    fullID,
+		ArmSize:                   s.ArmSize,
+		SkinColour:                s.SkinColour,
+		PersonaPieces:             slices.Clone(s.PersonaPieces),
+		PieceTintColours:          slices.Clone(s.PieceTintColours),
 		Animations:                animations,
 		Trusted:                   true,
 		OverrideAppearance:        true,
-		GeometryDataEngineVersion: []byte(protocol.CurrentVersion),
+		GeometryDataEngineVersion: slices.Clone(geometryVersion),
+		ProfileHash:               s.ProfileHash,
 	}
 }

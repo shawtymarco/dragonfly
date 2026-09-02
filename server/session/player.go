@@ -1280,6 +1280,16 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	s.Model = sk.SkinGeometry
 	s.PlayFabID = sk.PlayFabID
 	s.FullID = sk.FullID
+	s.Premium = sk.PremiumSkin
+	s.PersonaCapeOnClassic = sk.PersonaCapeOnClassicSkin
+	s.CapeID = sk.CapeID
+	s.ArmSize = sk.ArmSize
+	s.SkinColour = sk.SkinColour
+	s.PersonaPieces = slices.Clone(sk.PersonaPieces)
+	s.PieceTintColours = slices.Clone(sk.PieceTintColours)
+	s.AnimationData = slices.Clone(sk.AnimationData)
+	s.GeometryDataEngineVersion = slices.Clone(sk.GeometryDataEngineVersion)
+	s.ProfileHash = sk.ProfileHash
 
 	s.Cape = skin.NewCape(int(sk.CapeImageWidth), int(sk.CapeImageHeight))
 	s.Cape.Pix = sk.CapeData
