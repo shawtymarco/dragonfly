@@ -32,5 +32,6 @@ func (s *Session) ClientPredictedItemUse() bool {
 
 func (s *Session) predictedHeldItemMatches(slot int, after item.Stack) bool {
 	prediction := s.clientItemUsePrediction.Load()
-	return prediction != nil && prediction.matchHeld && prediction.slot == slot && after.Equal(prediction.held)
+	return prediction != nil && prediction.matchHeld && prediction.slot == slot &&
+		(after.Equal(prediction.held) || interactionPredictionCompatible(after, prediction.held))
 }

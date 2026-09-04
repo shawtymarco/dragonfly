@@ -6,7 +6,7 @@ import (
 	"github.com/df-mc/dragonfly/server/item"
 )
 
-func TestClientItemUsePredictionMatchesOnlyExactHeldResult(t *testing.T) {
+func TestClientItemUsePredictionMatchesSafeHeldResult(t *testing.T) {
 	s := &Session{}
 	expected := item.NewStack(item.Bow{}, 1).Damage(1)
 	end := s.beginClientPredictedItemUse(2, &expected)
@@ -20,13 +20,30 @@ func TestClientItemUsePredictionMatchesOnlyExactHeldResult(t *testing.T) {
 	if s.predictedHeldItemMatches(3, expected) {
 		t.Fatal("prediction matched a different hotbar slot")
 	}
-	if s.predictedHeldItemMatches(2, expected.Damage(1)) {
-		t.Fatal("prediction suppressed an authoritative durability correction")
+	if !s.predictedHeldItemMatches(2, expected.Damage(1)) {
+		t.Fatal("prediction did not tolerate client-predicted durability")
+	}
+	if s.predictedHeldItemMatches(2, item.NewStack(item.Apple{}, 1)) {
+		t.Fatal("prediction matched a different item")
+	}
+	if s.predictedHeldItemMatches(2, expected.WithValue("variant", 1)) {
+		t.Fatal("prediction matched different custom data")
 	}
 
 	end()
 	if s.ClientPredictedItemUse() {
 		t.Fatal("client item-use prediction remained active")
+	}
+}
+
+func TestClientItemUsePredictionMatchesPredictedCount(t *testing.T) {
+	s := &Session{}
+	expected := item.NewStack(item.GoldenApple{}, 2)
+	end := s.beginClientPredictedItemUse(4, &expected)
+	defer end()
+
+	if !s.predictedHeldItemMatches(4, expected.Grow(-1)) {
+		t.Fatal("prediction did not tolerate a client-predicted stack count")
 	}
 }
 
