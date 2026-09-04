@@ -149,12 +149,14 @@ func (h PlayerAuthInputHandler) handleActions(pk *packet.PlayerAuthInput, s *Ses
 
 // handleInputFlags handles the toggleable input flags set in a PlayerAuthInput packet.
 func (h PlayerAuthInputHandler) handleInputFlags(flags protocol.InputFlags, s *Session, c Controllable) {
-	if flags.Load(packet.InputFlagStartUsingItem) {
+	startUsingItem := flags.Load(packet.InputFlagStartUsingItem)
+	startUsingEdge, releaseGuard := s.clientStartUsingItemEdge(startUsingItem)
+	if startUsingItem {
 		usingBefore := c.UsingItem()
 		held, _ := c.HeldItems()
 		eligible := usesLongItem(held)
 		recovered := false
-		if eligible && !usingBefore {
+		if eligible && !usingBefore && startUsingEdge {
 			slot := -1
 			if s.heldSlot != nil {
 				slot = int(*s.heldSlot)
@@ -166,6 +168,8 @@ func (h PlayerAuthInputHandler) handleInputFlags(flags protocol.InputFlags, s *S
 		}
 		s.traceItemUse(c, "auth_input_start_using",
 			"eligible", eligible,
+			"rising_edge", startUsingEdge,
+			"release_guard", releaseGuard,
 			"using_before", usingBefore,
 			"using_after", c.UsingItem(),
 			"recovered", recovered)

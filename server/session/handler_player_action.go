@@ -66,6 +66,7 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 		// TODO: Properly utilize these actions.
 	case protocol.PlayerActionStopItemUseOn:
 		usingBefore := c.UsingItem()
+		s.markClientItemReleased()
 		endPrediction := s.beginClientPredictedItemUse(-1, nil)
 		defer endPrediction()
 		c.ReleaseItem()

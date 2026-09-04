@@ -62,3 +62,24 @@ func TestClientItemUsePredictionRestoresNestedScope(t *testing.T) {
 	}
 	outerEnd()
 }
+
+func TestClientStartUsingItemRequiresClearFrameAfterRelease(t *testing.T) {
+	s := &Session{}
+	if rising, guarded := s.clientStartUsingItemEdge(true); !rising || guarded {
+		t.Fatalf("initial edge rising=%v guarded=%v", rising, guarded)
+	}
+	if rising, _ := s.clientStartUsingItemEdge(true); rising {
+		t.Fatal("held input produced a second rising edge")
+	}
+
+	s.markClientItemReleased()
+	if rising, guarded := s.clientStartUsingItemEdge(true); rising || !guarded {
+		t.Fatalf("stale release flag rising=%v guarded=%v", rising, guarded)
+	}
+	if rising, guarded := s.clientStartUsingItemEdge(false); rising || guarded {
+		t.Fatalf("clear frame rising=%v guarded=%v", rising, guarded)
+	}
+	if rising, guarded := s.clientStartUsingItemEdge(true); !rising || guarded {
+		t.Fatalf("fresh post-clear edge rising=%v guarded=%v", rising, guarded)
+	}
+}

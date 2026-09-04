@@ -35,3 +35,22 @@ func (s *Session) predictedHeldItemMatches(slot int, after item.Stack) bool {
 	return prediction != nil && prediction.matchHeld && prediction.slot == slot &&
 		(after.Equal(prediction.held) || interactionPredictionCompatible(after, prediction.held))
 }
+
+func (s *Session) markClientItemReleased() {
+	s.waitStartUsingItemClear = true
+}
+
+// clientStartUsingItemEdge reports a fresh false-to-true StartUsingItem edge.
+// A release arms a guard which must first observe an input frame with the flag
+// clear. This prevents a stale flag batched with ReleaseItem from immediately
+// starting another use cycle after the physical button was released.
+func (s *Session) clientStartUsingItemEdge(active bool) (rising, releaseGuard bool) {
+	releaseGuard = s.waitStartUsingItemClear
+	if releaseGuard && !active {
+		s.waitStartUsingItemClear = false
+		releaseGuard = false
+	}
+	rising = active && !s.startUsingItemInput && !releaseGuard
+	s.startUsingItemInput = active
+	return rising, releaseGuard
+}
