@@ -344,8 +344,19 @@ func usesItemInAir(held item.Stack) bool {
 	if held.Empty() {
 		return false
 	}
+	if usesLongItem(held) {
+		return true
+	}
+	_, usable := held.Item().(item.Usable)
+	return usable
+}
+
+func usesLongItem(held item.Stack) bool {
+	if held.Empty() {
+		return false
+	}
 	switch held.Item().(type) {
-	case item.Releasable, item.Chargeable, item.Consumable, item.Usable:
+	case item.Releasable, item.Chargeable, item.Consumable:
 		return true
 	default:
 		return false

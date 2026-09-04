@@ -68,6 +68,27 @@ func TestAirUseFallbackItems(t *testing.T) {
 	}
 }
 
+func TestLongUseRecoveryItems(t *testing.T) {
+	tests := []struct {
+		name  string
+		stack item.Stack
+		want  bool
+	}{
+		{name: "bow", stack: item.NewStack(item.Bow{}, 1), want: true},
+		{name: "crossbow", stack: item.NewStack(item.Crossbow{}, 1), want: true},
+		{name: "food", stack: item.NewStack(item.GoldenApple{}, 1), want: true},
+		{name: "throwable", stack: item.NewStack(item.EnderPearl{}, 1)},
+		{name: "plain item", stack: item.NewStack(item.Arrow{}, 1)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := usesLongItem(test.stack); got != test.want {
+				t.Fatalf("usesLongItem() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestSimulationTickAirUsePolicy(t *testing.T) {
 	tests := []struct {
 		name  string
