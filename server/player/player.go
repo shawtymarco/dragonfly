@@ -1786,6 +1786,11 @@ func (p *Player) UseItem() {
 		}
 		ctx := NewEventContext(p.tx, p)
 		if p.Handler().HandleItemConsume(ctx, i); ctx.Cancelled() {
+			// A cancelled consumption is a completed attempt, not a state that
+			// should be retried by every simulation tick. Stop using the item so
+			// held input may begin a fresh, fully timed attempt.
+			p.usingItem = false
+			p.updateState()
 			return
 		}
 		// A successful consumption completes this use cycle. If the input
@@ -1813,8 +1818,12 @@ func continuesItemUse(it world.Item) bool {
 // ReleaseItem either aborts the using of the item or finished it, depending on the time that elapsed since
 // the item started being used.
 func (p *Player) ReleaseItem() {
-	if !p.usingItem || !p.canRelease() || !p.GameMode().AllowsInteraction() {
+	if !p.usingItem {
+		return
+	}
+	if !p.canRelease() || !p.GameMode().AllowsInteraction() {
 		p.usingItem = false
+		p.updateState()
 		return
 	}
 	p.usingItem = false
@@ -1823,6 +1832,7 @@ func (p *Player) ReleaseItem() {
 	i, _ := p.HeldItems()
 	ctx := NewEventContext(p.tx, p)
 	if p.Handler().HandleItemRelease(ctx, i, dur); ctx.Cancelled() {
+		p.updateState()
 		return
 	}
 	i.Item().(item.Releasable).Release(p, p.tx, useCtx, dur)

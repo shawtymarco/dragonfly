@@ -73,7 +73,7 @@ func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *wo
 		h.resendInventories(s)
 		return
 	case *protocol.UseItemOnEntityTransactionData:
-		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
+		if err = s.verifyAndSetHeldSlotForInteraction(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
 			h.resyncHeldSlot(s, c, int(data.HotBarSlot))
 			if traced {
 				s.RejectPacketTrace(trace.ID, PacketTraceReasonHeldItem)
@@ -82,13 +82,13 @@ func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *wo
 		}
 		return h.handleUseItemOnEntityTransaction(data, s, tx, c)
 	case *protocol.UseItemTransactionData:
-		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
+		if err = s.verifyAndSetHeldSlotForInteraction(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
 			h.resyncHeldSlot(s, c, int(data.HotBarSlot))
 			return
 		}
 		return h.handleUseItemTransaction(data, s, tx, c)
 	case *protocol.ReleaseItemTransactionData:
-		if err = s.VerifyAndSetHeldSlot(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
+		if err = s.verifyAndSetHeldSlotForInteraction(int(data.HotBarSlot), stackToItem(s.br, data.HeldItem.Stack), c); err != nil {
 			h.resyncHeldSlot(s, c, int(data.HotBarSlot))
 			return
 		}
@@ -337,9 +337,11 @@ func skipAirSimulationTick(held item.Stack, using bool) bool {
 		}
 		return true
 	case item.Releasable:
-		// Repeats preserve an active release cycle. Once ReleaseItemTransaction
-		// ended it, a continued input may immediately start the next cycle.
-		return using
+		// Releasable items finish through ReleaseItemTransaction. A simulation
+		// tick after that release is residual input, not a new press: Starting a
+		// new cycle from it leaves the server using the item before the client
+		// presses again and makes the next real draw stop immediately.
+		return true
 	default:
 		// Plain items, including server controls, activate once per press.
 		return true

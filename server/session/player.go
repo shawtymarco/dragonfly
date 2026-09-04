@@ -892,6 +892,35 @@ func (s *Session) VerifyAndSetHeldSlot(slot int, expected item.Stack, c Controll
 	return c.SetHeldSlot(slot)
 }
 
+// verifyAndSetHeldSlotForInteraction verifies and selects the slot used by an
+// item interaction without correcting count-only or durability-only prediction
+// differences. Bedrock predicts those mutations locally. Re-sending the held
+// slot while a bow or consumable starts using resets its client animation.
+func (s *Session) verifyAndSetHeldSlotForInteraction(slot int, expected item.Stack, c Controllable) error {
+	if slot < 0 || slot > 8 {
+		return fmt.Errorf("slot exceeds hotbar range 0-8: slot is %v", slot)
+	}
+	actual, _ := s.inv.Item(slot)
+	if !expected.Equal(actual) && !interactionPredictionCompatible(expected, actual) {
+		s.sendItem(actual, slot, protocol.WindowIDInventory)
+		s.conf.Log.Debug("verify interaction slot: client-side item was not equal to server-side item", "client-held", expected.String(), "server-held", actual.String())
+	}
+	s.changingSlot.Store(true)
+	defer s.changingSlot.Store(false)
+	return c.SetHeldSlot(slot)
+}
+
+// interactionPredictionCompatible reports whether the client and server stacks
+// only differ in values Bedrock predicts while an item is used: count and
+// durability. Item identity, metadata, enchantments and custom data must still
+// match. Empty and non-empty stacks are never compatible.
+func interactionPredictionCompatible(expected, actual item.Stack) bool {
+	if expected.Empty() || actual.Empty() {
+		return expected.Empty() && actual.Empty()
+	}
+	return expected.Comparable(actual)
+}
+
 // VerifySlot verifies if the slot passed is a valid hotbar slot and if the
 // expected item.Stack is in it.
 func (s *Session) VerifySlot(slot int, expected item.Stack) error {

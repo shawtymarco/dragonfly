@@ -42,7 +42,7 @@ func TestSimulationTickAirUsePolicy(t *testing.T) {
 	}{
 		{name: "plain control", stack: item.NewStack(item.Arrow{}, 1), want: true},
 		{name: "bow drawing", stack: item.NewStack(item.Bow{}, 1), using: true, want: true},
-		{name: "bow released while held", stack: item.NewStack(item.Bow{}, 1), want: false},
+		{name: "bow residual after release", stack: item.NewStack(item.Bow{}, 1), want: true},
 		{name: "crossbow charging", stack: item.NewStack(item.Crossbow{}, 1), using: true, want: false},
 		{name: "crossbow charged", stack: item.NewStack(item.Crossbow{Item: item.NewStack(item.Arrow{}, 1)}, 1), want: true},
 		{name: "crossbow fired while held", stack: item.NewStack(item.Crossbow{}, 1), want: false},
@@ -53,6 +53,29 @@ func TestSimulationTickAirUsePolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if got := skipAirSimulationTick(test.stack, test.using); got != test.want {
 				t.Fatalf("skipAirSimulationTick() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestInteractionPredictionCompatibility(t *testing.T) {
+	tests := []struct {
+		name             string
+		expected, actual item.Stack
+		want             bool
+	}{
+		{name: "same stack", expected: item.NewStack(item.Apple{}, 2), actual: item.NewStack(item.Apple{}, 2), want: true},
+		{name: "predicted count", expected: item.NewStack(item.Apple{}, 2), actual: item.NewStack(item.Apple{}, 1), want: true},
+		{name: "predicted durability", expected: item.NewStack(item.Bow{}, 1), actual: item.NewStack(item.Bow{}, 1).Damage(1), want: true},
+		{name: "different item", expected: item.NewStack(item.Apple{}, 1), actual: item.NewStack(item.Bow{}, 1), want: false},
+		{name: "different custom data", expected: item.NewStack(item.Apple{}, 1).WithValue("variant", 1), actual: item.NewStack(item.Apple{}, 1).WithValue("variant", 2), want: false},
+		{name: "empty mismatch", expected: item.Stack{}, actual: item.NewStack(item.Apple{}, 1), want: false},
+		{name: "both empty", expected: item.Stack{}, actual: item.Stack{}, want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := interactionPredictionCompatible(test.expected, test.actual); got != test.want {
+				t.Fatalf("interactionPredictionCompatible() = %v, want %v", got, test.want)
 			}
 		})
 	}
