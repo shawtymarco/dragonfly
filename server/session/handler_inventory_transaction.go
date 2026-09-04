@@ -417,7 +417,6 @@ func skipAirSimulationTick(held item.Stack, using bool) bool {
 // handleReleaseItemTransaction ...
 func (h *InventoryTransactionHandler) handleReleaseItemTransaction(data *protocol.ReleaseItemTransactionData, s *Session, c Controllable) error {
 	usingBefore := c.UsingItem()
-	s.markClientItemReleased()
 	expected := stackToItem(s.br, data.HeldItem.Stack)
 	endPrediction := s.beginClientPredictedItemUse(int(data.HotBarSlot), &expected)
 	defer endPrediction()

@@ -90,8 +90,6 @@ type Session struct {
 	clientItemUsePrediction        atomic.Pointer[clientItemUsePrediction]
 	itemUseTraceSequence           atomic.Uint64
 	itemUseTraceLimiter            itemUseTraceLimiter
-	startUsingItemInput            bool
-	waitStartUsingItemClear        bool
 	changingDimension              atomic.Bool
 	moving                         bool
 

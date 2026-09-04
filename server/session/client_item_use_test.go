@@ -4,7 +4,23 @@ import (
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/item"
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
+
+type traceOnlyStartUsingControllable struct {
+	Controllable
+	useCalls int
+}
+
+func (c *traceOnlyStartUsingControllable) HeldItems() (item.Stack, item.Stack) {
+	return item.NewStack(item.Bow{}, 1), item.Stack{}
+}
+
+func (*traceOnlyStartUsingControllable) UsingItem() bool { return false }
+func (*traceOnlyStartUsingControllable) Sneaking() bool  { return false }
+
+func (c *traceOnlyStartUsingControllable) UseItem() { c.useCalls++ }
 
 func TestClientItemUsePredictionMatchesSafeHeldResult(t *testing.T) {
 	s := &Session{}
@@ -63,23 +79,12 @@ func TestClientItemUsePredictionRestoresNestedScope(t *testing.T) {
 	outerEnd()
 }
 
-func TestClientStartUsingItemRequiresClearFrameAfterRelease(t *testing.T) {
-	s := &Session{}
-	if rising, guarded := s.clientStartUsingItemEdge(true); !rising || guarded {
-		t.Fatalf("initial edge rising=%v guarded=%v", rising, guarded)
-	}
-	if rising, _ := s.clientStartUsingItemEdge(true); rising {
-		t.Fatal("held input produced a second rising edge")
-	}
-
-	s.markClientItemReleased()
-	if rising, guarded := s.clientStartUsingItemEdge(true); rising || !guarded {
-		t.Fatalf("stale release flag rising=%v guarded=%v", rising, guarded)
-	}
-	if rising, guarded := s.clientStartUsingItemEdge(false); rising || guarded {
-		t.Fatalf("clear frame rising=%v guarded=%v", rising, guarded)
-	}
-	if rising, guarded := s.clientStartUsingItemEdge(true); !rising || guarded {
-		t.Fatalf("fresh post-clear edge rising=%v guarded=%v", rising, guarded)
+func TestStartUsingItemInputIsTraceOnly(t *testing.T) {
+	flags := protocol.NewInputFlags(packet.InputFlagCount)
+	flags.Set(packet.InputFlagStartUsingItem)
+	c := &traceOnlyStartUsingControllable{}
+	(PlayerAuthInputHandler{}).handleInputFlags(flags, &Session{}, c)
+	if c.useCalls != 0 {
+		t.Fatalf("StartUsingItem input synthesized %d item uses", c.useCalls)
 	}
 }
