@@ -43,20 +43,6 @@ func (s *Session) parseEntityMetadata(e world.Entity) protocol.EntityMetadata {
 	return m
 }
 
-// suppressSelfUsingItemMetadata removes the server-side using-item flag from
-// metadata sent to the controlling Bedrock client. The client owns and
-// predicts its local use animation. A delayed unrelated metadata update that
-// reasserts this bit after physical release can otherwise leave bows visually
-// drawn until the next interaction. Remote viewers still receive the
-// authoritative flag.
-func suppressSelfUsingItemMetadata(runtimeID uint64, metadata protocol.EntityMetadata) bool {
-	if runtimeID != selfEntityRuntimeID || !metadata.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagUsingItem) {
-		return false
-	}
-	metadata.UnsetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagUsingItem)
-	return true
-}
-
 func (s *Session) addSpecificMetadata(e any, m protocol.EntityMetadata) {
 	if sn, ok := e.(sneaker); ok && sn.Sneaking() {
 		m.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagSneaking)

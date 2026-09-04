@@ -1167,16 +1167,9 @@ func (s *Session) ViewEntityAction(e world.Entity, a world.EntityAction) {
 
 // ViewEntityState ...
 func (s *Session) ViewEntityState(e world.Entity) {
-	runtimeID := s.entityRuntimeID(e)
-	metadata := s.entityMetadata(e)
-	if suppressSelfUsingItemMetadata(runtimeID, metadata) {
-		if c, ok := e.(Controllable); ok {
-			s.traceItemUse(c, "self_using_item_metadata_suppressed")
-		}
-	}
 	s.writePacket(&packet.SetActorData{
-		EntityRuntimeID: runtimeID,
-		EntityMetadata:  metadata,
+		EntityRuntimeID: s.entityRuntimeID(e),
+		EntityMetadata:  s.entityMetadata(e),
 	})
 }
 
