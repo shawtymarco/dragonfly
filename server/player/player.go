@@ -459,6 +459,9 @@ func (p *Player) DisableInstantRespawn() {
 // SetNameTag changes the name tag displayed over the player in-game. Changing the name tag does not change
 // the player's name in, for example, the player list or the chat.
 func (p *Player) SetNameTag(name string) {
+	if p.nameTag == name {
+		return
+	}
 	p.nameTag = name
 	p.updateState()
 }
@@ -471,6 +474,9 @@ func (p *Player) NameTag() string {
 // SetAlwaysShowNameTag changes whether the name tag of the player is shown at all distances instead of only
 // when the player is looked at from up close. By default, the name tag is always shown.
 func (p *Player) SetAlwaysShowNameTag(alwaysShow bool) {
+	if p.alwaysShowNameTag == alwaysShow {
+		return
+	}
 	p.alwaysShowNameTag = alwaysShow
 	p.updateState()
 }
@@ -485,6 +491,9 @@ func (p *Player) AlwaysShowNameTag() bool {
 // name tag.
 func (p *Player) SetScoreTag(a ...any) {
 	tag := format(a)
+	if p.scoreTag == tag {
+		return
+	}
 	p.scoreTag = tag
 	p.updateState()
 }
