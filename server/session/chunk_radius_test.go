@@ -3,6 +3,7 @@ package session
 import (
 	"testing"
 
+	"github.com/df-mc/dragonfly/server/world"
 	"github.com/sandertv/gophertunnel/minecraft"
 )
 
@@ -51,5 +52,28 @@ func TestEffectiveChunkRadius(t *testing.T) {
 				t.Fatalf("effective chunk radius = %d, want %d", got, test.want)
 			}
 		})
+	}
+}
+
+func TestResizeChunkLoaderRequiresOwningWorldTransaction(t *testing.T) {
+	oldWorld := world.Config{Synchronous: true}.New()
+	newWorld := world.Config{Synchronous: true}.New()
+	t.Cleanup(func() {
+		_ = newWorld.Close()
+		_ = oldWorld.Close()
+	})
+
+	loader := world.NewLoader(8, oldWorld, world.NopViewer{})
+	s := &Session{chunkLoader: loader, chunkRadius: 4}
+	if err := newWorld.Do(func(tx *world.Tx) {
+		if s.resizeChunkLoader(tx) {
+			t.Fatal("loader radius changed through a transaction from another world")
+		}
+		loader.ChangeWorld(tx, newWorld)
+		if !s.resizeChunkLoader(tx) {
+			t.Fatal("loader radius was not applied after its world switch")
+		}
+	}).Wait(t.Context()); err != nil {
+		t.Fatal(err)
 	}
 }

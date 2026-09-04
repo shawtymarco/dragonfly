@@ -592,6 +592,7 @@ func (s *Session) handleWorldSwitch(w *world.World, tx *world.Tx, c Controllable
 	}
 	s.ViewEntityTeleport(c, c.Position())
 	s.chunkLoader.ChangeWorld(tx, w)
+	s.resizeChunkLoader(tx)
 }
 
 // changeDimension changes the dimension of the client. If silent is set to true, the portal noise will be stopped
@@ -650,11 +651,22 @@ func (s *Session) SetChunkRadiusLimit(tx *world.Tx, limit int) int32 {
 		return radius
 	}
 	s.chunkRadius = radius
-	if s.chunkLoader != nil {
-		s.chunkLoader.ChangeRadius(tx, int(radius))
-	}
+	s.resizeChunkLoader(tx)
 	s.writePacket(&packet.ChunkRadiusUpdated{ChunkRadius: radius})
 	return radius
+}
+
+// resizeChunkLoader applies the effective radius only when tx owns the
+// loader's current world. A player handle may already have moved to a new
+// world while the session loader is still attached to the previous one. Using
+// the new world's transaction to evict chunks from that old loader can attempt
+// to resolve old entities through the wrong transaction and panic.
+func (s *Session) resizeChunkLoader(tx *world.Tx) bool {
+	if s.chunkLoader == nil || tx == nil || s.chunkLoader.World() != tx.World() {
+		return false
+	}
+	s.chunkLoader.ChangeRadius(tx, int(s.chunkRadius))
+	return true
 }
 
 func effectiveChunkRadius(requested, maximum int32) int32 {
