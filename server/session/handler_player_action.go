@@ -65,9 +65,14 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 	case protocol.PlayerActionStartItemUseOn:
 		// TODO: Properly utilize these actions.
 	case protocol.PlayerActionStopItemUseOn:
+		usingBefore := c.UsingItem()
 		endPrediction := s.beginClientPredictedItemUse(-1, nil)
 		defer endPrediction()
 		c.ReleaseItem()
+		s.traceItemUse(c, "player_action_stop_item_use",
+			"action", action,
+			"using_before", usingBefore,
+			"using_after", c.UsingItem())
 	case protocol.PlayerActionStartBuildingBlock:
 		// Don't do anything for this action.
 	case protocol.PlayerActionCreativePlayerDestroyBlock:

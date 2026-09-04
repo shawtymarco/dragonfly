@@ -629,6 +629,7 @@ func (srv *Server) createPlayer(id uuid.UUID, conn session.Conn, conf player.Con
 		MaxChunkRadius:          srv.conf.MaxChunkRadius,
 		DisableSubChunkRequests: srv.conf.DisableSubChunkRequests,
 		EmoteChatMuted:          srv.conf.MuteEmoteChat,
+		ItemUseTrace:            srv.conf.ItemUseTrace,
 		JoinMessage:             srv.conf.JoinMessage,
 		QuitMessage:             srv.conf.QuitMessage,
 		HandleStop:              srv.handleSessionClose,

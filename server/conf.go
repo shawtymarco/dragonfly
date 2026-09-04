@@ -62,6 +62,10 @@ type Config struct {
 	AuthDisabled bool
 	// MuteEmoteChat specifies if the player emote chat should be muted or not.
 	MuteEmoteChat bool
+	// ItemUseTrace enables bounded structured diagnostics for client item-use
+	// transactions. It should only be enabled while diagnosing interaction
+	// state and never includes packet bodies or coordinates.
+	ItemUseTrace bool
 	// MaxPlayers is the maximum amount of players allowed to join the server at
 	// once.
 	MaxPlayers int

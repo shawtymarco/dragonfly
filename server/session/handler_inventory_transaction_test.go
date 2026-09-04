@@ -21,8 +21,9 @@ func TestRepeatedRightClickSignature(t *testing.T) {
 	if h.repeatedRightClick(data, now) {
 		t.Fatal("first click was classified as a repeat")
 	}
+	h.lastRightClick.blockHandled = true
 	if !h.repeatedRightClick(data, now.Add(50*time.Millisecond)) {
-		t.Fatal("identical click inside 100 ms was not filtered")
+		t.Fatal("identical handled click inside 100 ms was not filtered")
 	}
 	data.BlockPosition[0]++
 	if h.repeatedRightClick(data, now.Add(75*time.Millisecond)) {
@@ -30,6 +31,40 @@ func TestRepeatedRightClickSignature(t *testing.T) {
 	}
 	if h.repeatedRightClick(data, now.Add(200*time.Millisecond)) {
 		t.Fatal("click outside the 100 ms window was filtered")
+	}
+}
+
+func TestUnhandledBlockRightClickRepeatsForAirFallback(t *testing.T) {
+	h := &InventoryTransactionHandler{}
+	data := &protocol.UseItemTransactionData{
+		BlockFace:       1,
+		BlockPosition:   protocol.BlockPos{1, 2, 3},
+		Position:        mgl32.Vec3{4, 5, 6},
+		ClickedPosition: mgl32.Vec3{0.5, 1, 0.5},
+	}
+	now := time.Unix(100, 0)
+	if h.repeatedRightClick(data, now) || h.repeatedRightClick(data, now.Add(50*time.Millisecond)) {
+		t.Fatal("unhandled block click was filtered before air-use fallback")
+	}
+}
+
+func TestAirUseFallbackItems(t *testing.T) {
+	tests := []struct {
+		name  string
+		stack item.Stack
+		want  bool
+	}{
+		{name: "bow", stack: item.NewStack(item.Bow{}, 1), want: true},
+		{name: "crossbow", stack: item.NewStack(item.Crossbow{}, 1), want: true},
+		{name: "food", stack: item.NewStack(item.GoldenApple{}, 1), want: true},
+		{name: "plain item", stack: item.NewStack(item.Arrow{}, 1)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := usesItemInAir(test.stack); got != test.want {
+				t.Fatalf("usesItemInAir() = %v, want %v", got, test.want)
+			}
+		})
 	}
 }
 

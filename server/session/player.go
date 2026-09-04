@@ -796,7 +796,15 @@ func (s *Session) HandleInventories(tx *world.Tx, c Controllable, inv, offHand, 
 
 func (s *Session) broadcastInvFunc(tx *world.Tx, c Controllable) inventory.SlotFunc {
 	return func(slot int, _, after item.Stack) {
-		predicted := slot == int(*s.heldSlot) && s.predictedHeldItemMatches(slot, after)
+		predictionActive := slot == int(*s.heldSlot) && s.ClientPredictedItemUse()
+		predicted := predictionActive && s.predictedHeldItemMatches(slot, after)
+		if predictionActive {
+			event := "held_echo_correction"
+			if predicted {
+				event = "held_echo_suppressed"
+			}
+			s.traceItemUse(c, event, "slot", slot)
+		}
 		if slot == int(*s.heldSlot) {
 			for _, viewer := range tx.Viewers(c.Position()) {
 				if predicted {

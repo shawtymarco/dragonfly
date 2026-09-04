@@ -27,6 +27,7 @@ type rightClickSignature struct {
 	playerPosition  mgl32.Vec3
 	blockPosition   protocol.BlockPos
 	clickedPosition mgl32.Vec3
+	blockHandled    bool
 }
 
 // Handle ...
@@ -245,8 +246,24 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 
 // handleUseItemTransaction ...
 func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.UseItemTransactionData, s *Session, tx *world.Tx, c Controllable) error {
+	usingBefore := c.UsingItem()
+	outcome := "unhandled"
+	fallback := false
+	defer func() {
+		s.traceItemUse(c, "use_transaction",
+			"action", data.ActionType,
+			"trigger", data.TriggerType,
+			"hotbar_slot", data.HotBarSlot,
+			"client_prediction", data.ClientPrediction,
+			"client_cooldown", data.ClientCooldownState,
+			"using_before", usingBefore,
+			"using_after", c.UsingItem(),
+			"outcome", outcome,
+			"air_fallback", fallback)
+	}()
 	pos := cube.Pos{int(data.BlockPosition[0]), int(data.BlockPosition[1]), int(data.BlockPosition[2])}
 	if data.ActionType == protocol.UseItemActionClickBlock && h.repeatedRightClick(data, time.Now()) {
+		outcome = "handled_block_repeat_filtered"
 		return nil
 	}
 	var simulationTx *world.Tx
@@ -255,6 +272,7 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 	}
 	if (data.ActionType == protocol.UseItemActionClickBlock || data.ActionType == protocol.UseItemActionClickAir) &&
 		skipSimulationTick(data.ActionType, data.TriggerType, c, simulationTx, pos) {
+		outcome = "simulation_tick_filtered"
 		return nil
 	}
 	if data.ClientPrediction == protocol.ClientPredictionSuccess || data.ActionType == protocol.UseItemActionBreakBlock {
@@ -269,10 +287,25 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 	switch data.ActionType {
 	case protocol.UseItemActionBreakBlock:
 		c.BreakBlock(pos)
+		outcome = "break_block"
 	case protocol.UseItemActionClickBlock:
-		c.UseItemOnBlock(pos, cube.Face(data.BlockFace), vec32To64(data.ClickedPosition))
+		handled := c.UseItemOnBlock(pos, cube.Face(data.BlockFace), vec32To64(data.ClickedPosition))
+		h.lastRightClick.blockHandled = handled
+		if handled {
+			outcome = "block_handled"
+			break
+		}
+		held, _ := c.HeldItems()
+		if usesItemInAir(held) {
+			c.UseItem()
+			fallback = true
+			outcome = "air_fallback"
+		} else {
+			outcome = "block_unhandled"
+		}
 	case protocol.UseItemActionClickAir:
 		c.UseItem()
+		outcome = "air_use"
 	default:
 		return fmt.Errorf("unhandled UseItem ActionType %v", data.ActionType)
 	}
@@ -291,16 +324,32 @@ func (h *InventoryTransactionHandler) repeatedRightClick(data *protocol.UseItemT
 		clickedPosition: data.ClickedPosition,
 	}
 	previous, previousTime := h.lastRightClick, h.lastRightClickTime
-	h.lastRightClick, h.lastRightClickTime = current, now
-	return !previousTime.IsZero() && now.Sub(previousTime) < 100*time.Millisecond &&
+	repeated := !previousTime.IsZero() && now.Sub(previousTime) < 100*time.Millisecond &&
 		previous.face == current.face && previous.blockPosition == current.blockPosition &&
 		vec3DistanceSquared(previous.playerPosition, current.playerPosition) < 0.00001 &&
 		vec3DistanceSquared(previous.clickedPosition, current.clickedPosition) < 0.00001
+	if repeated {
+		current.blockHandled = previous.blockHandled
+	}
+	h.lastRightClick, h.lastRightClickTime = current, now
+	return repeated && previous.blockHandled
 }
 
 func vec3DistanceSquared(a, b mgl32.Vec3) float32 {
 	delta := a.Sub(b)
 	return delta.Dot(delta)
+}
+
+func usesItemInAir(held item.Stack) bool {
+	if held.Empty() {
+		return false
+	}
+	switch held.Item().(type) {
+	case item.Releasable, item.Chargeable, item.Consumable, item.Usable:
+		return true
+	default:
+		return false
+	}
 }
 
 // skipSimulationTick drops Bedrock hold-repeats. A real tap is UNKNOWN; the
@@ -356,9 +405,15 @@ func skipAirSimulationTick(held item.Stack, using bool) bool {
 
 // handleReleaseItemTransaction ...
 func (h *InventoryTransactionHandler) handleReleaseItemTransaction(data *protocol.ReleaseItemTransactionData, s *Session, c Controllable) error {
+	usingBefore := c.UsingItem()
 	expected := stackToItem(s.br, data.HeldItem.Stack)
 	endPrediction := s.beginClientPredictedItemUse(int(data.HotBarSlot), &expected)
 	defer endPrediction()
 	c.ReleaseItem()
+	s.traceItemUse(c, "release_transaction",
+		"action", data.ActionType,
+		"hotbar_slot", data.HotBarSlot,
+		"using_before", usingBefore,
+		"using_after", c.UsingItem())
 	return nil
 }

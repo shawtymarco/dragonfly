@@ -1905,23 +1905,25 @@ func (p *Player) UsingItem() bool {
 // UseItemOnBlock uses the item held in the main hand of the player on a block at the position passed. The
 // player is assumed to have clicked the face passed with the relative click position clickPos.
 // If the item could not be used successfully, for example when the position is out of range, the method
-// returns immediately.
+// returns true. False is returned only when no block or block-capable held item
+// handled the attempt, allowing the session to fall back to air use for bows,
+// chargeable items and consumables.
 // UseItemOnBlock does nothing if the block at the cube.Pos passed is of the type block.Air.
-func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec3) {
+func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec3) bool {
 	if _, ok := p.tx.Block(pos).(block.Air); ok || !p.canReach(pos.Vec3Centre()) {
 		// The client used its item on a block that does not exist server-side or one it couldn't reach. Stop trying
 		// to use the item immediately.
 		p.resendNearbyBlocks(pos, face)
-		return
+		return true
 	}
 	ctx := NewEventContext(p.tx, p)
 	if p.Handler().HandleItemUseOnBlock(ctx, pos, face, clickPos); ctx.Cancelled() {
 		p.resendNearbyBlocks(pos, face)
-		return
+		return true
 	}
 	if !p.GameMode().HasCollision() {
 		p.resendNearbyBlocks(pos, face)
-		return
+		return true
 	}
 	i, left := p.HeldItems()
 	b := p.tx.Block(pos)
@@ -1937,23 +1939,24 @@ func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec
 				p.SwingArm()
 				p.SetHeldItems(p.subtractItem(p.damageItem(i, useCtx.Damage), useCtx.CountSub), left)
 				p.addNewItem(useCtx)
-				return
+				return true
 			}
 		}
 	}
 	if i.Empty() {
-		return
+		return true
 	}
 	switch ib := i.Item().(type) {
 	case item.UsableOnBlock:
 		// The item does something when used on a block.
 		useCtx := p.useContext()
 		if !ib.UseOnBlock(pos, face, clickPos, p.tx, p, useCtx) {
-			return
+			return true
 		}
 		p.SwingArm()
 		p.SetHeldItems(p.subtractItem(p.damageItem(i, useCtx.Damage), useCtx.CountSub), left)
 		p.addNewItem(useCtx)
+		return true
 	case world.Block:
 		// The item IS a block, meaning it is being placed.
 		replacedPos := pos
@@ -1962,13 +1965,15 @@ func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec
 			replacedPos = pos.Side(face)
 		}
 		if replaceable, ok := p.tx.Block(replacedPos).(block.Replaceable); !ok || !replaceable.ReplaceableBy(ib) || replacedPos.OutOfBounds(p.tx.Range()) {
-			return
+			return true
 		}
 		if !p.placeBlock(replacedPos, ib, false) || p.GameMode().CreativeInventory() {
-			return
+			return true
 		}
 		p.SetHeldItems(p.subtractItem(i, 1), left)
+		return true
 	}
+	return false
 }
 
 // UseItemOnEntity uses the item held in the main hand of the player on the entity passed, provided it is

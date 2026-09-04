@@ -88,6 +88,8 @@ type Session struct {
 	swingingArm                    atomic.Bool
 	changingSlot                   atomic.Bool
 	clientItemUsePrediction        atomic.Pointer[clientItemUsePrediction]
+	itemUseTraceSequence           atomic.Uint64
+	itemUseTraceLimiter            itemUseTraceLimiter
 	changingDimension              atomic.Bool
 	moving                         bool
 
@@ -182,6 +184,9 @@ type Config struct {
 	DisableSubChunkRequests bool
 
 	EmoteChatMuted bool
+	// ItemUseTrace enables bounded structured item-use diagnostics for this
+	// session. Packet bodies, player names and coordinates are not logged.
+	ItemUseTrace bool
 
 	JoinMessage, QuitMessage chat.Translation
 
