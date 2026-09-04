@@ -92,7 +92,7 @@ func (h *InventoryTransactionHandler) Handle(p packet.Packet, s *Session, tx *wo
 			h.resyncHeldSlot(s, c, int(data.HotBarSlot))
 			return
 		}
-		return h.handleReleaseItemTransaction(c)
+		return h.handleReleaseItemTransaction(data, s, c)
 	}
 	return fmt.Errorf("unhandled inventory transaction type %T", pk.TransactionData)
 }
@@ -203,6 +203,9 @@ func (h *InventoryTransactionHandler) handleUseItemOnEntityTransaction(data *pro
 	var valid bool
 	switch data.ActionType {
 	case protocol.UseItemOnEntityActionInteract:
+		expected := stackToItem(s.br, data.HeldItem.Stack)
+		endPrediction := s.beginClientPredictedItemUse(int(data.HotBarSlot), &expected)
+		defer endPrediction()
 		valid = c.UseItemOnEntity(e)
 	case protocol.UseItemOnEntityActionAttack:
 		s.beginAttackMetadata(AttackMetadata{
@@ -259,6 +262,9 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 		s.swingingArm.Store(true)
 		defer s.swingingArm.Store(false)
 	}
+	expected := stackToItem(s.br, data.HeldItem.Stack)
+	endPrediction := s.beginClientPredictedItemUse(int(data.HotBarSlot), &expected)
+	defer endPrediction()
 
 	switch data.ActionType {
 	case protocol.UseItemActionBreakBlock:
@@ -349,7 +355,10 @@ func skipAirSimulationTick(held item.Stack, using bool) bool {
 }
 
 // handleReleaseItemTransaction ...
-func (h *InventoryTransactionHandler) handleReleaseItemTransaction(c Controllable) error {
+func (h *InventoryTransactionHandler) handleReleaseItemTransaction(data *protocol.ReleaseItemTransactionData, s *Session, c Controllable) error {
+	expected := stackToItem(s.br, data.HeldItem.Stack)
+	endPrediction := s.beginClientPredictedItemUse(int(data.HotBarSlot), &expected)
+	defer endPrediction()
 	c.ReleaseItem()
 	return nil
 }

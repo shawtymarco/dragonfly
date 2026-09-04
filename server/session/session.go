@@ -87,6 +87,7 @@ type Session struct {
 	openedVirtualPair              atomic.Pointer[cube.Pos]
 	swingingArm                    atomic.Bool
 	changingSlot                   atomic.Bool
+	clientItemUsePrediction        atomic.Pointer[clientItemUsePrediction]
 	changingDimension              atomic.Bool
 	moving                         bool
 

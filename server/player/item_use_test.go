@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/df-mc/dragonfly/server/item"
+	"github.com/df-mc/dragonfly/server/session"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
@@ -15,6 +16,15 @@ type itemUseCountingHandler struct {
 	uses, consumes int
 	cancelConsume  bool
 	cancelRelease  bool
+}
+
+type itemUseStateViewer struct {
+	world.NopViewer
+	states int
+}
+
+func (v *itemUseStateViewer) ViewEntityState(world.Entity) {
+	v.states++
 }
 
 func (h *itemUseCountingHandler) HandleItemUse(*Context) { h.uses++ }
@@ -226,5 +236,21 @@ func TestFullFoodStartsOnlyAlwaysConsumableItems(t *testing.T) {
 		}
 	}).Wait(t.Context()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestClientPredictedItemUseStateExcludesOnlySelf(t *testing.T) {
+	other := &itemUseStateViewer{}
+	viewers := []world.Viewer{session.Nop, other}
+
+	viewItemUseState(viewers, session.Nop, nil, true)
+	if other.states != 1 {
+		t.Fatalf("predicted update states other=%d", other.states)
+	}
+
+	first, second := &itemUseStateViewer{}, &itemUseStateViewer{}
+	viewItemUseState([]world.Viewer{first, second}, session.Nop, nil, false)
+	if first.states != 1 || second.states != 1 {
+		t.Fatalf("server update states first=%d second=%d", first.states, second.states)
 	}
 }

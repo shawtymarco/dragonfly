@@ -796,12 +796,18 @@ func (s *Session) HandleInventories(tx *world.Tx, c Controllable, inv, offHand, 
 
 func (s *Session) broadcastInvFunc(tx *world.Tx, c Controllable) inventory.SlotFunc {
 	return func(slot int, _, after item.Stack) {
+		predicted := slot == int(*s.heldSlot) && s.predictedHeldItemMatches(slot, after)
 		if slot == int(*s.heldSlot) {
 			for _, viewer := range tx.Viewers(c.Position()) {
+				if predicted {
+					if ownSession, ok := viewer.(*Session); ok && ownSession == s {
+						continue
+					}
+				}
 				viewer.ViewEntityItems(c)
 			}
 		}
-		if !s.inTransaction.Load() {
+		if !s.inTransaction.Load() && !predicted {
 			s.sendItem(after, slot, protocol.WindowIDInventory)
 		}
 	}

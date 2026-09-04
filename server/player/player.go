@@ -1721,7 +1721,7 @@ func (p *Player) UseItem() {
 			return
 		}
 		p.usingSince, p.usingItem = time.Now(), true
-		p.updateState()
+		p.updateItemUseState()
 	}
 	switch usable := it.(type) {
 	case item.Chargeable:
@@ -1732,7 +1732,7 @@ func (p *Player) UseItem() {
 				p.usingSince, p.usingItem = time.Now(), true
 			}
 			p.handleUseContext(useCtx)
-			p.updateState()
+			p.updateItemUseState()
 			return
 		}
 
@@ -1742,14 +1742,14 @@ func (p *Player) UseItem() {
 		if !usable.Charge(p, p.tx, useCtx, dur) {
 			if !usable.CanCharge(p, p.tx, useCtx) {
 				p.usingItem = false
-				p.updateState()
+				p.updateItemUseState()
 			}
 			return
 		}
 		p.usingItem = false
 		p.session().SendChargeItemComplete()
 		p.handleUseContext(useCtx)
-		p.updateState()
+		p.updateItemUseState()
 	case item.Usable:
 		useCtx := p.useContext()
 		if !usable.Use(p.tx, p, useCtx) {
@@ -1774,7 +1774,7 @@ func (p *Player) UseItem() {
 		if !p.usingItem {
 			// Consumable starts being consumed: Set the start timestamp and update the using state to viewers.
 			p.usingItem, p.usingSince = true, time.Now()
-			p.updateState()
+			p.updateItemUseState()
 			return
 		}
 		// The player is currently using the item held. Validate that it has
@@ -1790,7 +1790,7 @@ func (p *Player) UseItem() {
 			// should be retried by every simulation tick. Stop using the item so
 			// held input may begin a fresh, fully timed attempt.
 			p.usingItem = false
-			p.updateState()
+			p.updateItemUseState()
 			return
 		}
 		// A successful consumption completes this use cycle. If the input
@@ -1799,7 +1799,7 @@ func (p *Player) UseItem() {
 		useCtx.CountSub, useCtx.NewItem = 1, usable.Consume(p.tx, p)
 		p.handleUseContext(useCtx)
 		p.tx.PlaySound(p.Position().Add(mgl64.Vec3{0, 1.5}), sound.Burp{})
-		p.updateState()
+		p.updateItemUseState()
 	}
 }
 
@@ -1823,7 +1823,7 @@ func (p *Player) ReleaseItem() {
 	}
 	if !p.canRelease() || !p.GameMode().AllowsInteraction() {
 		p.usingItem = false
-		p.updateState()
+		p.updateItemUseState()
 		return
 	}
 	p.usingItem = false
@@ -1832,12 +1832,12 @@ func (p *Player) ReleaseItem() {
 	i, _ := p.HeldItems()
 	ctx := NewEventContext(p.tx, p)
 	if p.Handler().HandleItemRelease(ctx, i, dur); ctx.Cancelled() {
-		p.updateState()
+		p.updateItemUseState()
 		return
 	}
 	i.Item().(item.Releasable).Release(p, p.tx, useCtx, dur)
 	p.handleUseContext(useCtx)
-	p.updateState()
+	p.updateItemUseState()
 }
 
 // canRelease returns whether the player can release the item currently held in the main hand.
@@ -3470,6 +3470,27 @@ func (p *Player) TurnLecternPage(pos cube.Pos, page int) error {
 func (p *Player) updateState() {
 	for _, v := range p.viewers() {
 		v.ViewEntityState(p)
+	}
+}
+
+// updateItemUseState updates item-use metadata. A local Bedrock client has
+// already predicted state transitions that originated from its own use or
+// release transaction. Sending that transition back to the same session after
+// network delay can stop a newer bow draw or consumption animation, so only
+// other viewers receive the predicted echo. Server-initiated transitions are
+// still sent to every viewer, including the controlling session.
+func (p *Player) updateItemUseState() {
+	viewItemUseState(p.viewers(), p.session(), p, p.session().ClientPredictedItemUse())
+}
+
+func viewItemUseState(viewers []world.Viewer, self *session.Session, entity world.Entity, clientPredicted bool) {
+	for _, viewer := range viewers {
+		if clientPredicted {
+			if ownSession, ok := viewer.(*session.Session); ok && ownSession == self {
+				continue
+			}
+		}
+		viewer.ViewEntityState(entity)
 	}
 }
 
