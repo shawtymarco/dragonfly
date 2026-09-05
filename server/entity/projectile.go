@@ -60,6 +60,10 @@ type ProjectileBehaviourConfig struct {
 	// or trace.BlockResult. Hit may be set to run additional behaviour when a
 	// projectile hits a target.
 	Hit func(e *Ent, tx *world.Tx, target trace.Result)
+	// Tick is called once for each airborne projectile tick before movement and
+	// collision are processed. It may add presentation such as a trail, but
+	// must not retain e or tx after it returns.
+	Tick func(e *Ent, tx *world.Tx)
 	// SurviveBlockCollision specifies if a projectile with this
 	// ProjectileBehaviour should survive collision with a block. If set to
 	// false, the projectile will break when hitting a block (like a snowball).
@@ -175,6 +179,9 @@ func (lt *ProjectileBehaviour) Tick(e *Ent, tx *world.Tx) *Movement {
 			lt.close = true
 		}
 		return nil
+	}
+	if lt.conf.Tick != nil {
+		lt.conf.Tick(e, tx)
 	}
 	vel := e.Velocity()
 	m, result := lt.tickMovement(e, tx)
