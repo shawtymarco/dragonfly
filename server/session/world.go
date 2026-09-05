@@ -502,6 +502,22 @@ func (s *Session) ViewParticle(pos mgl64.Vec3, p world.Particle) {
 			Position:  vec64To32(pos),
 			EventData: pa.Data,
 		})
+	case particle.Actor:
+		if pa.Identifier == "" {
+			return
+		}
+		s.entityMutex.Lock()
+		s.currentEntityRuntimeID++
+		runtimeID := s.currentEntityRuntimeID
+		s.entityMutex.Unlock()
+		s.writePacket(&packet.AddActor{
+			EntityUniqueID:   int64(runtimeID),
+			EntityRuntimeID:  runtimeID,
+			EntityType:       pa.Identifier,
+			Position:         vec64To32(pos),
+			EntityMetadata:   protocol.NewEntityMetadata(),
+			EntityProperties: protocol.EntityProperties{},
+		})
 	case particle.Flame:
 		if pa.Colour != (color.RGBA{}) {
 			s.writePacket(&packet.LevelEvent{

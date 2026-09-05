@@ -12,3 +12,11 @@ type Legacy struct {
 	ID   int32
 	Data int32
 }
+
+// Actor spawns a packet-only actor effect. The client owns its visual lifetime,
+// matching effects such as lightning that remove themselves after playback.
+type Actor struct {
+	particle
+
+	Identifier string
+}

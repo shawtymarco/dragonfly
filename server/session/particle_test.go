@@ -37,3 +37,14 @@ func TestLegacyParticleRejectsInvalidID(t *testing.T) {
 		}
 	}
 }
+
+func TestActorParticleEncoding(t *testing.T) {
+	s := &Session{packets: make(chan outboundMessage, 1), closeBackground: make(chan struct{}), currentEntityRuntimeID: 10}
+	pos := mgl64.Vec3{1, 2, 3}
+	s.ViewParticle(pos, particle.Actor{Identifier: "minecraft:lightning_bolt"})
+	message := <-s.packets
+	pk, ok := message.packet.(*packet.AddActor)
+	if !ok || pk.EntityRuntimeID != 11 || pk.EntityUniqueID != 11 || pk.EntityType != "minecraft:lightning_bolt" || pk.Position != vec64To32(pos) {
+		t.Fatalf("actor particle = %#v", message.packet)
+	}
+}
