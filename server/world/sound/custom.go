@@ -12,3 +12,21 @@ type Custom struct {
 
 	sound
 }
+
+// LegacyEvent is a raw LevelEvent sound expressed in the current native event
+// registry. EventData has event-specific meaning.
+type LegacyEvent struct {
+	EventType int32
+	EventData int32
+
+	sound
+}
+
+// Named is a LevelSoundEvent selected by its current native string name.
+type Named struct {
+	Name                  string
+	ExtraData             int32
+	DisableRelativeVolume bool
+
+	sound
+}

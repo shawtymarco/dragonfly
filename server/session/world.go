@@ -626,6 +626,23 @@ func (s *Session) playSound(pos mgl64.Vec3, t world.Sound, disableRelative bool)
 		default:
 			pk.SoundType = packet.SoundEventEquipGeneric
 		}
+	case sound.LegacyEvent:
+		if so.EventType <= 0 {
+			return
+		}
+		s.writePacket(&packet.LevelEvent{
+			EventType: so.EventType,
+			Position:  vec64To32(pos),
+			EventData: so.EventData,
+		})
+		return
+	case sound.Named:
+		if so.Name == "" {
+			return
+		}
+		pk.SoundType = so.Name
+		pk.ExtraData = so.ExtraData
+		pk.DisableRelativeVolume = so.DisableRelativeVolume
 	case sound.Note:
 		pk.SoundType = packet.SoundEventNote
 		pk.ExtraData = (so.Instrument.Int32() << 8) | int32(so.Pitch)
