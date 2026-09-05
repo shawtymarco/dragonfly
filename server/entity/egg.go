@@ -9,8 +9,14 @@ import (
 // NewEgg creates an Egg entity. Egg is as a throwable entity that can be used
 // to spawn chicks.
 func NewEgg(opts world.EntitySpawnOpts, owner world.Entity) *world.EntityHandle {
+	return NewEggWithTick(opts, owner, nil)
+}
+
+// NewEggWithTick creates an Egg with an optional airborne tick callback.
+func NewEggWithTick(opts world.EntitySpawnOpts, owner world.Entity, tick func(*Ent, *world.Tx)) *world.EntityHandle {
 	conf := eggConf
 	conf.Owner = owner.H()
+	conf.Tick = tick
 	return opts.New(EggType, conf)
 }
 

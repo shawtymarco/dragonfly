@@ -27,3 +27,25 @@ func TestProjectileAirborneTickHook(t *testing.T) {
 		t.Fatalf("tick hook calls = %d", calls)
 	}
 }
+
+func TestThrowableConstructorsPreserveTickHook(t *testing.T) {
+	w := world.Config{Synchronous: true}.New()
+	t.Cleanup(func() { _ = w.Close() })
+	calls := 0
+	if err := w.Do(func(tx *world.Tx) {
+		ownerHandle := world.EntitySpawnOpts{Position: mgl64.Vec3{0, 64, 0}}.New(testMovingEntType{}, testMoveConfig{})
+		owner := tx.AddEntity(ownerHandle)
+		for _, handle := range []*world.EntityHandle{
+			NewEggWithTick(world.EntitySpawnOpts{Position: mgl64.Vec3{0, 65, 0}}, owner, func(*Ent, *world.Tx) { calls++ }),
+			NewSnowballWithTick(world.EntitySpawnOpts{Position: mgl64.Vec3{0, 65, 0}}, owner, func(*Ent, *world.Tx) { calls++ }),
+		} {
+			projectile := tx.AddEntity(handle).(world.TickerEntity)
+			projectile.Tick(tx, 1)
+		}
+	}).Wait(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("throwable tick hook calls = %d", calls)
+	}
+}

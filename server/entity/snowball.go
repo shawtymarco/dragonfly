@@ -8,8 +8,14 @@ import (
 
 // NewSnowball creates a snowball entity at a position with an owner entity.
 func NewSnowball(opts world.EntitySpawnOpts, owner world.Entity) *world.EntityHandle {
+	return NewSnowballWithTick(opts, owner, nil)
+}
+
+// NewSnowballWithTick creates a Snowball with an optional airborne tick callback.
+func NewSnowballWithTick(opts world.EntitySpawnOpts, owner world.Entity, tick func(*Ent, *world.Tx)) *world.EntityHandle {
 	conf := snowballConf
 	conf.Owner = owner.H()
+	conf.Tick = tick
 	return opts.New(SnowballType, conf)
 }
 
