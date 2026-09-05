@@ -528,6 +528,10 @@ type ArrowSpawnConfig struct {
 	PiercingLevel int
 	// Tip specifies the potion tip carried by the arrow.
 	Tip any
+	// Tick is called once for each airborne arrow tick before movement and
+	// collision are processed. It may add presentation such as a trail, but
+	// must not retain the entity or transaction after it returns.
+	Tick func(Entity, *Tx)
 }
 
 // New creates an EntityRegistry using conf and the EntityTypes passed.

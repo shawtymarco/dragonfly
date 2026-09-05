@@ -3,6 +3,7 @@ package entity
 import (
 	"testing"
 
+	"github.com/df-mc/dragonfly/server/item/potion"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
 )
@@ -47,5 +48,33 @@ func TestThrowableConstructorsPreserveTickHook(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatalf("throwable tick hook calls = %d", calls)
+	}
+}
+
+func TestArrowRegistryPreservesTickHook(t *testing.T) {
+	w := world.Config{Synchronous: true}.New()
+	t.Cleanup(func() { _ = w.Close() })
+	calls := 0
+	if err := w.Do(func(tx *world.Tx) {
+		ownerHandle := world.EntitySpawnOpts{Position: mgl64.Vec3{0, 64, 0}}.New(testMovingEntType{}, testMoveConfig{})
+		owner := tx.AddEntity(ownerHandle)
+		var handle *world.EntityHandle
+		handle = DefaultRegistry.Config().Arrow(world.EntitySpawnOpts{Position: mgl64.Vec3{0, 65, 0}}, world.ArrowSpawnConfig{
+			Owner: owner,
+			Tip:   potion.Potion{},
+			Tick: func(projectile world.Entity, callbackTx *world.Tx) {
+				if projectile.H() != handle || callbackTx != tx {
+					t.Fatal("tick received the wrong arrow or transaction")
+				}
+				calls++
+			},
+		})
+		projectile := tx.AddEntity(handle).(world.TickerEntity)
+		projectile.Tick(tx, 1)
+	}).Wait(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("arrow tick hook calls = %d", calls)
 	}
 }

@@ -63,6 +63,9 @@ var conf = world.EntityRegistryConfig{
 		}
 		conf.Critical = arrow.Critical
 		conf.PiercingLevel = arrow.PiercingLevel
+		if arrow.Tick != nil {
+			conf.Tick = func(e *Ent, tx *world.Tx) { arrow.Tick(e, tx) }
+		}
 		return opts.New(ArrowType, conf)
 	},
 }
