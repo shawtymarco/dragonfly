@@ -518,6 +518,28 @@ func (s *Session) ViewParticle(pos mgl64.Vec3, p world.Particle) {
 			EntityMetadata:   protocol.NewEntityMetadata(),
 			EntityProperties: protocol.EntityProperties{},
 		})
+	case particle.ItemBreak:
+		if pa.Item == nil {
+			return
+		}
+		runtimeID, meta, ok := world.ItemRuntimeID(pa.Item)
+		if !ok {
+			return
+		}
+		s.writePacket(&packet.LevelEvent{
+			EventType: packet.LevelEventParticleLegacyEvent | 14,
+			Position:  vec64To32(pos),
+			EventData: int32(uint32(runtimeID)<<16 | uint32(uint16(meta))),
+		})
+	case particle.Terrain:
+		if pa.Block == nil {
+			return
+		}
+		s.writePacket(&packet.LevelEvent{
+			EventType: packet.LevelEventParticleLegacyEvent | 21,
+			Position:  vec64To32(pos),
+			EventData: int32(s.br.BlockRuntimeID(pa.Block)),
+		})
 	case particle.Flame:
 		if pa.Colour != (color.RGBA{}) {
 			s.writePacket(&packet.LevelEvent{

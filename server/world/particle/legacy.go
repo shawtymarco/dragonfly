@@ -1,5 +1,7 @@
 package particle
 
+import "github.com/df-mc/dragonfly/server/world"
+
 // Legacy is a Bedrock legacy particle event expressed in the current native
 // particle registry. ID is the particle ID without the LevelEvent particle
 // mask. Data has particle-specific meaning.
@@ -19,4 +21,20 @@ type Actor struct {
 	particle
 
 	Identifier string
+}
+
+// ItemBreak displays particles textured with Item. Sessions resolve its
+// current-native runtime ID before protocol adapters map the packet.
+type ItemBreak struct {
+	particle
+
+	Item world.Item
+}
+
+// Terrain displays particles textured with Block. Sessions resolve Block
+// through their active block registry before protocol adapters map the packet.
+type Terrain struct {
+	particle
+
+	Block world.Block
 }

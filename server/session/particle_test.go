@@ -3,6 +3,9 @@ package session
 import (
 	"testing"
 
+	"github.com/df-mc/dragonfly/server/block"
+	"github.com/df-mc/dragonfly/server/item"
+	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/particle"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
@@ -46,5 +49,31 @@ func TestActorParticleEncoding(t *testing.T) {
 	pk, ok := message.packet.(*packet.AddActor)
 	if !ok || pk.EntityRuntimeID != 11 || pk.EntityUniqueID != 11 || pk.EntityType != "minecraft:lightning_bolt" || pk.Position != vec64To32(pos) {
 		t.Fatalf("actor particle = %#v", message.packet)
+	}
+}
+
+func TestRuntimeBackedParticleEncoding(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		particle world.Particle
+		event    int32
+		data     func(*Session) int32
+	}{
+		{name: "item break", particle: particle.ItemBreak{Item: item.Slimeball{}}, event: packet.LevelEventParticleLegacyEvent | 14, data: func(*Session) int32 {
+			runtimeID, meta, _ := world.ItemRuntimeID(item.Slimeball{})
+			return int32(uint32(runtimeID)<<16 | uint32(uint16(meta)))
+		}},
+		{name: "terrain", particle: particle.Terrain{Block: block.Stone{}}, event: packet.LevelEventParticleLegacyEvent | 21, data: func(s *Session) int32 {
+			return int32(s.br.BlockRuntimeID(block.Stone{}))
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := &Session{packets: make(chan outboundMessage, 1), closeBackground: make(chan struct{}), br: world.DefaultBlockRegistry}
+			s.ViewParticle(mgl64.Vec3{}, test.particle)
+			pk, ok := (<-s.packets).packet.(*packet.LevelEvent)
+			if !ok || pk.EventType != test.event || pk.EventData != test.data(s) {
+				t.Fatalf("particle packet = %#v", pk)
+			}
+		})
 	}
 }
