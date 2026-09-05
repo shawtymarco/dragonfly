@@ -493,6 +493,15 @@ func (s *Session) ViewParticle(pos mgl64.Vec3, p world.Particle) {
 			EventType: packet.LevelEventParticlesTeleport,
 			Position:  vec64To32(pos),
 		})
+	case particle.Legacy:
+		if pa.ID <= 0 || pa.ID >= packet.LevelEventParticleLegacyEvent {
+			return
+		}
+		s.writePacket(&packet.LevelEvent{
+			EventType: packet.LevelEventParticleLegacyEvent | pa.ID,
+			Position:  vec64To32(pos),
+			EventData: pa.Data,
+		})
 	case particle.Flame:
 		if pa.Colour != (color.RGBA{}) {
 			s.writePacket(&packet.LevelEvent{
