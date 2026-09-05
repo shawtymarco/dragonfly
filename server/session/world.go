@@ -207,6 +207,7 @@ func (s *Session) ViewEntity(e world.Entity) {
 		EntityUniqueID:  int64(runtimeID),
 		EntityRuntimeID: runtimeID,
 		EntityType:      id,
+		Attributes:      entityAttributes(e),
 		EntityMetadata:  metadata,
 		Position:        vec64To32(e.Position()),
 		Velocity:        vec64To32(vel),
