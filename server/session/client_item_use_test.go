@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/item"
+	"github.com/df-mc/dragonfly/server/item/inventory"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
@@ -54,7 +55,7 @@ func TestClientItemUsePredictionMatchesSafeHeldResult(t *testing.T) {
 
 func TestClientItemUsePredictionMatchesPredictedCount(t *testing.T) {
 	s := &Session{}
-	expected := item.NewStack(item.GoldenApple{}, 2)
+	expected := item.NewStack(item.Snowball{}, 2)
 	end := s.beginClientPredictedItemUse(4, &expected)
 	defer end()
 
@@ -63,9 +64,23 @@ func TestClientItemUsePredictionMatchesPredictedCount(t *testing.T) {
 	}
 }
 
+func TestConsumableTransactionsKeepUpstreamInventoryEcho(t *testing.T) {
+	slot := uint32(2)
+	s := &Session{heldSlot: &slot, inv: inventory.New(36, nil)}
+	held := item.NewStack(item.GoldenApple{}, 2)
+	_ = s.inv.SetItem(int(slot), held)
+	for _, input := range []*item.Stack{&held, nil} {
+		end := s.beginClientPredictedItemUse(int(slot), input)
+		if s.ClientPredictedItemUse() || s.predictedHeldItemMatches(int(slot), held.Grow(-1)) {
+			t.Fatal("consumable transaction suppressed upstream inventory synchronisation")
+		}
+		end()
+	}
+}
+
 func TestClientItemUsePredictionRestoresNestedScope(t *testing.T) {
 	s := &Session{}
-	outerHeld := item.NewStack(item.Apple{}, 2)
+	outerHeld := item.NewStack(item.Snowball{}, 2)
 	outerEnd := s.beginClientPredictedItemUse(1, &outerHeld)
 	innerEnd := s.beginClientPredictedItemUse(-1, nil)
 

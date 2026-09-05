@@ -13,6 +13,16 @@ type clientItemUsePrediction struct {
 // its local player. Echoing matching held-item or using-state updates back to
 // that player may arrive during a later use cycle and reset its animation.
 func (s *Session) beginClientPredictedItemUse(slot int, held *item.Stack) func() {
+	if held != nil {
+		if _, consumable := held.Item().(item.Consumable); consumable {
+			return func() {}
+		}
+	} else if s.inv != nil && s.heldSlot != nil {
+		current, _ := s.inv.Item(int(*s.heldSlot))
+		if _, consumable := current.Item().(item.Consumable); consumable {
+			return func() {}
+		}
+	}
 	prediction := &clientItemUsePrediction{slot: slot}
 	if held != nil {
 		prediction.held = *held

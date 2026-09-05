@@ -262,7 +262,9 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 			"air_fallback", fallback)
 	}()
 	pos := cube.Pos{int(data.BlockPosition[0]), int(data.BlockPosition[1]), int(data.BlockPosition[2])}
-	if data.ActionType == protocol.UseItemActionClickBlock && h.repeatedRightClick(data, time.Now()) {
+	held, _ := c.HeldItems()
+	_, consumable := held.Item().(item.Consumable)
+	if !consumable && data.ActionType == protocol.UseItemActionClickBlock && h.repeatedRightClick(data, time.Now()) {
 		outcome = "handled_block_repeat_filtered"
 		return nil
 	}
@@ -270,7 +272,7 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 	if data.ActionType == protocol.UseItemActionClickBlock {
 		simulationTx = tx
 	}
-	if (data.ActionType == protocol.UseItemActionClickBlock || data.ActionType == protocol.UseItemActionClickAir) &&
+	if !consumable && (data.ActionType == protocol.UseItemActionClickBlock || data.ActionType == protocol.UseItemActionClickAir) &&
 		skipSimulationTick(data.ActionType, data.TriggerType, c, simulationTx, pos) {
 		outcome = "simulation_tick_filtered"
 		return nil
@@ -283,6 +285,11 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 	expected := stackToItem(s.br, data.HeldItem.Stack)
 	endPrediction := s.beginClientPredictedItemUse(int(data.HotBarSlot), &expected)
 	defer endPrediction()
+	if consumable {
+		// Upstream consumption synchronises inventories before dispatching the
+		// transaction. Other held items retain the fork's prediction path.
+		h.resendInventories(s)
+	}
 
 	switch data.ActionType {
 	case protocol.UseItemActionBreakBlock:
@@ -290,6 +297,10 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 		outcome = "break_block"
 	case protocol.UseItemActionClickBlock:
 		handled := c.UseItemOnBlock(pos, cube.Face(data.BlockFace), vec32To64(data.ClickedPosition))
+		if consumable {
+			outcome = "consumable_block_use"
+			break
+		}
 		h.lastRightClick.blockHandled = handled
 		if handled {
 			outcome = "block_handled"
@@ -389,8 +400,7 @@ func skipSimulationTick(action, trigger uint32, c Controllable, tx *world.Tx, po
 func skipAirSimulationTick(held item.Stack, using bool) bool {
 	switch heldItem := held.Item().(type) {
 	case item.Consumable:
-		// A repeat validates the consume duration. After a successful consume,
-		// the next repeat starts using the next item in the stack.
+		// Upstream consumption keeps the timed use cycle active between items.
 		return false
 	case item.Chargeable:
 		if using {

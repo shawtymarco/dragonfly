@@ -1783,38 +1783,31 @@ func (p *Player) UseItem() {
 		if !p.usingItem {
 			// Consumable starts being consumed: Set the start timestamp and update the using state to viewers.
 			p.usingItem, p.usingSince = true, time.Now()
-			p.updateItemUseState()
+			p.updateState()
 			return
 		}
-		// The player is currently using the item held. Validate that it has
-		// reached the item's consume duration before completing this cycle.
+		// The player is currently using the item held. This is a signal the item was consumed, so we
+		// consume it and start using it again.
 		useCtx, dur := p.useContext(), p.useDuration()
 		if dur < usable.ConsumeDuration() {
 			// The required duration for consuming this item was not met, so we don't consume it.
 			return
 		}
+		// Reset the duration for the next item to be consumed.
+		p.usingSince = time.Now()
 		ctx := NewEventContext(p.tx, p)
 		if p.Handler().HandleItemConsume(ctx, i); ctx.Cancelled() {
-			// A cancelled consumption is a completed attempt, not a state that
-			// should be retried by every simulation tick. Stop using the item so
-			// held input may begin a fresh, fully timed attempt.
-			p.usingItem = false
-			p.updateItemUseState()
 			return
 		}
-		// A successful consumption completes this use cycle. If the input
-		// remains held, the next CLICK_AIR repeat starts the next stack item.
-		p.usingItem = false
 		useCtx.CountSub, useCtx.NewItem = 1, usable.Consume(p.tx, p)
 		p.handleUseContext(useCtx)
 		p.tx.PlaySound(p.Position().Add(mgl64.Vec3{0, 1.5}), sound.Burp{})
-		p.updateItemUseState()
 	}
 }
 
 func continuesItemUse(it world.Item) bool {
 	switch it.(type) {
-	case item.Chargeable, item.Consumable:
+	case item.Chargeable:
 		return true
 	default:
 		return false
@@ -1827,6 +1820,12 @@ func continuesItemUse(it world.Item) bool {
 // ReleaseItem either aborts the using of the item or finished it, depending on the time that elapsed since
 // the item started being used.
 func (p *Player) ReleaseItem() {
+	if held, _ := p.HeldItems(); isConsumable(held) {
+		// Match upstream consumption cancellation without changing the fork's
+		// bow/chargeable release and prediction behavior.
+		p.usingItem = false
+		return
+	}
 	if !p.usingItem {
 		return
 	}
@@ -1847,6 +1846,11 @@ func (p *Player) ReleaseItem() {
 	i.Item().(item.Releasable).Release(p, p.tx, useCtx, dur)
 	p.handleUseContext(useCtx)
 	p.updateItemUseState()
+}
+
+func isConsumable(held item.Stack) bool {
+	_, ok := held.Item().(item.Consumable)
+	return ok
 }
 
 // canRelease returns whether the player can release the item currently held in the main hand.

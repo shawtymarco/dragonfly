@@ -82,6 +82,7 @@ func gameModeVisibleToSession(self bool, mode world.GameMode) bool {
 // ViewEntity ...
 func (s *Session) ViewEntity(e world.Entity) {
 	if e.H() == s.ent {
+		s.forgetPlayerDimensions(selfEntityRuntimeID)
 		s.ViewEntityState(e)
 		return
 	}
@@ -105,6 +106,9 @@ func (s *Session) ViewEntity(e world.Entity) {
 
 	yaw, pitch := e.Rotation().Elem()
 	metadata := s.entityMetadata(e)
+	if controllable {
+		s.filterPlayerDimensions(runtimeID, metadata, true)
+	}
 
 	id := e.H().Type().EncodeEntity()
 	switch v := e.(type) {
@@ -236,6 +240,7 @@ func (s *Session) HideEntity(e world.Entity) {
 
 	s.entityMutex.Lock()
 	id, ok := s.entityRuntimeIDs[e.H()]
+	delete(s.playerDimensions, id)
 	if _, controllable := e.(Controllable); !controllable {
 		delete(s.entityRuntimeIDs, e.H())
 		delete(s.entities, id)
@@ -1167,9 +1172,14 @@ func (s *Session) ViewEntityAction(e world.Entity, a world.EntityAction) {
 
 // ViewEntityState ...
 func (s *Session) ViewEntityState(e world.Entity) {
+	id := s.entityRuntimeID(e)
+	metadata := s.entityMetadata(e)
+	if _, controllable := e.(Controllable); controllable {
+		s.filterPlayerDimensions(id, metadata, false)
+	}
 	s.writePacket(&packet.SetActorData{
-		EntityRuntimeID: s.entityRuntimeID(e),
-		EntityMetadata:  s.entityMetadata(e),
+		EntityRuntimeID: id,
+		EntityMetadata:  metadata,
 	})
 }
 

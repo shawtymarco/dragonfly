@@ -107,7 +107,7 @@ func TestEarlyChargeRepeatKeepsCharging(t *testing.T) {
 	}
 }
 
-func TestConsumableRepeatsValidateDurationAndRestart(t *testing.T) {
+func TestConsumableRepeatsKeepUpstreamContinuousUse(t *testing.T) {
 	w := world.Config{Synchronous: true}.New()
 	t.Cleanup(func() { _ = w.Close() })
 
@@ -127,33 +127,37 @@ func TestConsumableRepeatsValidateDurationAndRestart(t *testing.T) {
 		pl.usingSince = time.Now()
 		pl.UseItem()
 		held, _ := pl.HeldItems()
-		if held.Count() != 2 || handler.uses != 1 || handler.consumes != 0 {
+		if held.Count() != 2 || handler.uses != 2 || handler.consumes != 0 {
 			t.Fatalf("early repeat changed stack/events: count=%d uses=%d consumes=%d", held.Count(), handler.uses, handler.consumes)
 		}
 
 		pl.usingSince = time.Now().Add(-2 * time.Second)
 		pl.UseItem()
 		held, _ = pl.HeldItems()
-		if pl.usingItem || held.Count() != 1 || handler.uses != 1 || handler.consumes != 1 {
+		if !pl.usingItem || held.Count() != 1 || handler.uses != 3 || handler.consumes != 1 {
 			t.Fatalf("completed consume state=%v count=%d uses=%d consumes=%d", pl.usingItem, held.Count(), handler.uses, handler.consumes)
 		}
 
 		pl.UseItem()
-		if !pl.usingItem || handler.uses != 2 {
-			t.Fatalf("held input did not restart next item: state=%v uses=%d", pl.usingItem, handler.uses)
+		if !pl.usingItem || handler.uses != 4 || handler.consumes != 1 {
+			t.Fatalf("held input bypassed the next duration: state=%v uses=%d consumes=%d", pl.usingItem, handler.uses, handler.consumes)
 		}
 		pl.usingSince = time.Now().Add(-2 * time.Second)
 		pl.UseItem()
 		held, _ = pl.HeldItems()
-		if pl.usingItem || !held.Empty() || handler.consumes != 2 {
-			t.Fatalf("final consume left stale use state: state=%v held=%+v consumes=%d", pl.usingItem, held, handler.consumes)
+		if !pl.usingItem || !held.Empty() || handler.consumes != 2 {
+			t.Fatalf("final consume state=%v held=%+v consumes=%d", pl.usingItem, held, handler.consumes)
+		}
+		pl.ReleaseItem()
+		if pl.usingItem {
+			t.Fatal("release did not stop consumption")
 		}
 	}).Wait(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestCancelledConsumptionEndsUseCycle(t *testing.T) {
+func TestCancelledConsumptionRetainsUpstreamUseAndResetsDuration(t *testing.T) {
 	w := world.Config{Synchronous: true}.New()
 	t.Cleanup(func() { _ = w.Close() })
 
@@ -170,16 +174,19 @@ func TestCancelledConsumptionEndsUseCycle(t *testing.T) {
 		pl.usingSince = time.Now().Add(-2 * time.Second)
 		pl.UseItem()
 		held, _ := pl.HeldItems()
-		if pl.usingItem || held.Count() != 2 || handler.consumes != 1 {
+		if !pl.usingItem || held.Count() != 2 || handler.consumes != 1 {
 			t.Fatalf("cancelled consume state=%v count=%d consumes=%d", pl.usingItem, held.Count(), handler.consumes)
 		}
 
-		// A held-input repeat starts a new timed attempt, but cannot immediately
-		// invoke the consume handler again.
+		// Upstream keeps consuming after cancellation but restarts its timer.
 		pl.UseItem()
 		pl.UseItem()
 		if !pl.usingItem || handler.consumes != 1 {
 			t.Fatalf("fresh consume attempt state=%v consumes=%d", pl.usingItem, handler.consumes)
+		}
+		pl.ReleaseItem()
+		if pl.usingItem {
+			t.Fatal("release did not stop the cancelled consumption")
 		}
 	}).Wait(t.Context()); err != nil {
 		t.Fatal(err)

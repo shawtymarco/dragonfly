@@ -65,6 +65,7 @@ type Session struct {
 	entityRuntimeIDs map[*world.EntityHandle]uint64
 	entities         map[uint64]*world.EntityHandle
 	hiddenEntities   map[uuid.UUID]struct{}
+	playerDimensions map[uint64]playerDimensions
 
 	// heldSlot is the slot in the inventory that the controllable is holding.
 	heldSlot                     *uint32
@@ -400,6 +401,7 @@ func (s *Session) close(tx *world.Tx, c Controllable) {
 	sessions.Remove(s, c)
 	s.entityMutex.Lock()
 	clear(s.entityRuntimeIDs)
+	clear(s.playerDimensions)
 	clear(s.entities)
 	s.entityMutex.Unlock()
 }
@@ -577,6 +579,9 @@ func (s *Session) sendChunks(tx *world.Tx, c Controllable) {
 
 // handleWorldSwitch handles the player of the Session switching worlds.
 func (s *Session) handleWorldSwitch(w *world.World, tx *world.Tx, c Controllable) {
+	s.entityMutex.Lock()
+	clear(s.playerDimensions)
+	s.entityMutex.Unlock()
 	s.blobMu.Lock()
 	if s.conn.ClientCacheEnabled() {
 		s.blobs = map[uint64][]byte{}

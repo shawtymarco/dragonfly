@@ -64,6 +64,7 @@ type packetTraceState struct {
 	startedAt     time.Time
 	terminal      bool
 	acceptedHint  bool
+	deferred      bool
 }
 
 type packetTraceTracker struct {
@@ -176,6 +177,9 @@ func (s *Session) QueuePacketTraceFeedback(id uint64, role uint8) {
 }
 
 func packetTraceResult(state packetTraceState, accepted, terminal bool, role uint8, reason string) PacketTraceResult {
+	if accepted && state.deferred {
+		reason = "accepted_deferred"
+	}
 	return PacketTraceResult{
 		ID:               state.trace.ID,
 		Accepted:         accepted,
