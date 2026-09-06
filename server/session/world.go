@@ -382,7 +382,7 @@ func (s *Session) ViewEntityItems(e world.Entity) {
 // ViewEntityArmour ...
 func (s *Session) ViewEntityArmour(e world.Entity) {
 	runtimeID := s.entityRuntimeID(e)
-	if runtimeID == selfEntityRuntimeID || s.entityHidden(e) {
+	if runtimeID == 0 || runtimeID == selfEntityRuntimeID || s.entityHidden(e) {
 		// Don't view the items of the entity if the entity is the Controllable entity of the session.
 		return
 	}
@@ -395,6 +395,12 @@ func (s *Session) ViewEntityArmour(e world.Entity) {
 
 	inv := armoured.Armour()
 	if inv == nil {
+		return
+	}
+	if policy, ok := e.(interface {
+		ArmourVisible(viewer *world.EntityHandle) bool
+	}); ok && !policy.ArmourVisible(s.ent) {
+		s.writePacket(&packet.MobArmourEquipment{EntityRuntimeID: runtimeID})
 		return
 	}
 

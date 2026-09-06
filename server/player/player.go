@@ -239,7 +239,12 @@ func (p *Player) Handle(h Handler) {
 	if h == nil {
 		h = NopHandler{}
 	}
+	_, oldArmourPolicy := p.h.(ArmourVisibilityHandler)
+	_, newArmourPolicy := h.(ArmourVisibilityHandler)
 	p.h = h
+	if oldArmourPolicy || newArmourPolicy {
+		p.refreshArmourVisibility()
+	}
 }
 
 // Message sends a formatted message to the player. The message is formatted following the rules of
@@ -1442,6 +1447,9 @@ func (p *Player) SetInvisible() {
 	}
 	p.invisible = true
 	p.updateState()
+	if _, ok := p.h.(ArmourVisibilityHandler); ok {
+		p.refreshArmourVisibility()
+	}
 }
 
 // SetVisible sets the player visible again, so that other players can see it again. If the player was already
@@ -1452,6 +1460,9 @@ func (p *Player) SetVisible() {
 	}
 	p.invisible = false
 	p.updateState()
+	if _, ok := p.h.(ArmourVisibilityHandler); ok {
+		p.refreshArmourVisibility()
+	}
 }
 
 // Invisible checks if the Player is currently invisible.
