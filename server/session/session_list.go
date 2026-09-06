@@ -92,6 +92,8 @@ func (l *sessionList) sendSessionTo(s, to *Session) {
 
 func (l *sessionList) unsendSessionFrom(s, from *Session) {
 	from.entityMutex.Lock()
+	delete(from.shownEntities, s.ent)
+	delete(from.pendingPlayers, s.ent)
 	delete(from.entities, from.entityRuntimeIDs[s.ent])
 	delete(from.entityRuntimeIDs, s.ent)
 	from.entityMutex.Unlock()

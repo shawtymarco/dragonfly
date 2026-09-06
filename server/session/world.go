@@ -89,11 +89,19 @@ func (s *Session) ViewEntity(e world.Entity) {
 	if s.entityHidden(e) {
 		return
 	}
+	if s.entityShown(e) || s.deferPlayerSpawn(e) {
+		return
+	}
 	var runtimeID uint64
 
 	_, controllable := e.(Controllable)
 
 	s.entityMutex.Lock()
+	if s.shownEntities == nil {
+		s.shownEntities = make(map[*world.EntityHandle]struct{})
+	}
+	s.shownEntities[e.H()] = struct{}{}
+	delete(s.pendingPlayers, e.H())
 	if id, ok := s.entityRuntimeIDs[e.H()]; ok && controllable {
 		runtimeID = id
 	} else {
@@ -220,7 +228,7 @@ func (s *Session) ViewEntity(e world.Entity) {
 
 // ViewEntityGameMode ...
 func (s *Session) ViewEntityGameMode(e world.Entity) {
-	if s.entityHidden(e) {
+	if !s.entityShown(e) || s.entityHidden(e) {
 		return
 	}
 	c, ok := e.(Controllable)
@@ -240,7 +248,10 @@ func (s *Session) HideEntity(e world.Entity) {
 	}
 
 	s.entityMutex.Lock()
-	id, ok := s.entityRuntimeIDs[e.H()]
+	id := s.entityRuntimeIDs[e.H()]
+	_, ok := s.shownEntities[e.H()]
+	delete(s.shownEntities, e.H())
+	delete(s.pendingPlayers, e.H())
 	delete(s.playerDimensions, id)
 	if _, controllable := e.(Controllable); !controllable {
 		delete(s.entityRuntimeIDs, e.H())
@@ -257,7 +268,7 @@ func (s *Session) HideEntity(e world.Entity) {
 // ViewEntityMovement ...
 func (s *Session) ViewEntityMovement(e world.Entity, pos mgl64.Vec3, rot cube.Rotation, onGround bool) {
 	id := s.entityRuntimeID(e)
-	if (id == selfEntityRuntimeID && s.moving) || s.entityHidden(e) {
+	if (id == selfEntityRuntimeID && s.moving) || !s.entityShown(e) || s.entityHidden(e) {
 		return
 	}
 	s.viewEntityAbsoluteMovement(id, e, pos, rot, onGround, false)
@@ -265,7 +276,7 @@ func (s *Session) ViewEntityMovement(e world.Entity, pos mgl64.Vec3, rot cube.Ro
 
 // ViewEntityDisplacement ...
 func (s *Session) ViewEntityDisplacement(e world.Entity, pos mgl64.Vec3, rot cube.Rotation, onGround bool) {
-	if s.entityHidden(e) {
+	if !s.entityShown(e) || s.entityHidden(e) {
 		return
 	}
 	id := s.entityRuntimeID(e)
@@ -290,7 +301,7 @@ func (s *Session) viewEntityAbsoluteMovement(id uint64, e world.Entity, pos mgl6
 
 // ViewEntityVelocity ...
 func (s *Session) ViewEntityVelocity(e world.Entity, velocity mgl64.Vec3) {
-	if s.entityHidden(e) {
+	if !s.entityShown(e) || s.entityHidden(e) {
 		return
 	}
 	s.writePacket(&packet.SetActorMotion{
@@ -320,7 +331,7 @@ func (s *Session) ViewTimeCycle(doDayLightCycle bool) {
 // ViewEntityTeleport ...
 func (s *Session) ViewEntityTeleport(e world.Entity, position mgl64.Vec3) {
 	id := s.entityRuntimeID(e)
-	if s.entityHidden(e) {
+	if !s.entityShown(e) || s.entityHidden(e) {
 		return
 	}
 
@@ -355,7 +366,7 @@ func (s *Session) ViewEntityTeleport(e world.Entity, position mgl64.Vec3) {
 // ViewEntityItems ...
 func (s *Session) ViewEntityItems(e world.Entity) {
 	runtimeID := s.entityRuntimeID(e)
-	if runtimeID == selfEntityRuntimeID || s.entityHidden(e) {
+	if runtimeID == selfEntityRuntimeID || !s.entityShown(e) || s.entityHidden(e) {
 		// Don't view the items of the entity if the entity is the Controllable entity of the session.
 		return
 	}
@@ -382,7 +393,7 @@ func (s *Session) ViewEntityItems(e world.Entity) {
 // ViewEntityArmour ...
 func (s *Session) ViewEntityArmour(e world.Entity) {
 	runtimeID := s.entityRuntimeID(e)
-	if runtimeID == 0 || runtimeID == selfEntityRuntimeID || s.entityHidden(e) {
+	if runtimeID == 0 || runtimeID == selfEntityRuntimeID || !s.entityShown(e) || s.entityHidden(e) {
 		// Don't view the items of the entity if the entity is the Controllable entity of the session.
 		return
 	}
@@ -1243,6 +1254,9 @@ func (s *Session) ViewEntityAction(e world.Entity, a world.EntityAction) {
 
 // ViewEntityState ...
 func (s *Session) ViewEntityState(e world.Entity) {
+	if !s.entityShown(e) || s.entityHidden(e) {
+		return
+	}
 	id := s.entityRuntimeID(e)
 	metadata := s.entityMetadata(e)
 	if _, controllable := e.(Controllable); controllable {
