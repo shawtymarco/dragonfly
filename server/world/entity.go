@@ -52,6 +52,9 @@ type EntityHandle struct {
 	worldless    *atomic.Bool
 	weakTxActive bool
 	w            *World
+	// lookupWorld mirrors w for non-blocking owner checks. Scheduler decisions
+	// still use w under cond.L; both bindings change in the same writer methods.
+	lookupWorld atomic.Pointer[World]
 	// worldReady becomes true only after AddEntity finishes registering and
 	// opening the entity in w. Scheduled callbacks wait for this handoff.
 	worldReady bool
@@ -143,7 +146,7 @@ func (e *EntityHandle) Type() EntityType {
 // A non-nil Entity is returned only if the entity's world matches the world of
 // the Tx. If they do not match, false is returned.
 func (e *EntityHandle) Entity(tx *Tx) (Entity, bool) {
-	if e == nil || e.w != tx.World() {
+	if e == nil || e.lookupWorld.Load() != tx.World() {
 		return nil, false
 	}
 	return e.t.Open(tx, e, &e.data), true
@@ -337,6 +340,7 @@ func (e *EntityHandle) unsetAndLockWorld() {
 
 	e.worldless.Store(true)
 	e.w = nil
+	e.lookupWorld.Store(nil)
 	e.worldReady = false
 	e.worldVersion.Add(1)
 	e.notifyWorldChangedLocked()
@@ -352,6 +356,7 @@ func (e *EntityHandle) setAndUnlockWorld(w *World) {
 		panic("cannot add entity to new world before removing from old world")
 	}
 	e.w = w
+	e.lookupWorld.Store(w)
 	e.worldReady = false
 	e.worldVersion.Add(1)
 	e.notifyWorldChangedLocked()
@@ -387,6 +392,7 @@ func (e *EntityHandle) setAndUnlockWorldAt(w *World, pos mgl64.Vec3) {
 	}
 	e.data.Pos = pos
 	e.w = w
+	e.lookupWorld.Store(w)
 	e.cond.Broadcast()
 }
 
