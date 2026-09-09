@@ -462,8 +462,16 @@ func (srv *Server) makeBlockEntries() {
 // registered custom items. It allows item components to be created only once
 // at startup
 func (srv *Server) makeItemComponents() {
+	srv.customItems = CustomItemEntries()
+}
+
+// CustomItemEntries returns the registered custom items with their native components.
+// Register all items before calling this function or creating protocol adapters.
+// Every call owns its component maps, so protocol conversion cannot mutate another
+// server or connection's registry.
+func CustomItemEntries() []protocol.ItemEntry {
 	custom := world.CustomItems()
-	srv.customItems = make([]protocol.ItemEntry, len(custom))
+	entries := make([]protocol.ItemEntry, len(custom))
 
 	for i, it := range custom {
 		name, _ := it.EncodeItem()
@@ -473,7 +481,7 @@ func (srv *Server) makeItemComponents() {
 		if isCustomBlock {
 			entryVersion = protocol.ItemEntryVersionNone
 		}
-		srv.customItems[i] = protocol.ItemEntry{
+		entries[i] = protocol.ItemEntry{
 			Name:           name,
 			ComponentBased: !isCustomBlock,
 			RuntimeID:      int16(rid),
@@ -481,6 +489,7 @@ func (srv *Server) makeItemComponents() {
 			Data:           iteminternal.Components(it),
 		}
 	}
+	return entries
 }
 
 // makeDimensionData initialises the server's custom dimensions list.
@@ -857,8 +866,17 @@ func vec64To32(vec3 mgl64.Vec3) mgl32.Vec3 {
 // be sent in the StartGame packet.
 func (srv *Server) itemEntries() []protocol.ItemEntry {
 	entries := VanillaItemEntries()
-	entries = append(entries, srv.customItems...)
+	for _, entry := range srv.customItems {
+		entry.Data = cloneItemData(entry.Data)
+		entries = append(entries, entry)
+	}
 	return entries
+}
+
+// ItemEntries returns an independent native registry containing vanilla and all
+// registered custom items. Call it after registration, before building adapters.
+func ItemEntries() []protocol.ItemEntry {
+	return append(VanillaItemEntries(), CustomItemEntries()...)
 }
 
 // VanillaItemEntries returns a deep copy of the current native item registry
@@ -872,7 +890,7 @@ func VanillaItemEntries() []protocol.ItemEntry {
 			RuntimeID:      int16(e.RuntimeID),
 			ComponentBased: e.ComponentBased,
 			Version:        e.Version,
-			Data:           e.Data,
+			Data:           cloneItemData(e.Data),
 		})
 	}
 	return entries
