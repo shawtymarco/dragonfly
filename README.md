@@ -41,6 +41,25 @@ Publishing your project on GitHub? Consider adding the **[#df-mc](https://github
 repository and opening a pull request at [df-wiki](https://github.com/df-mc/wiki) adding your project as a Community
 Project to improve its visibility.
 
+### Per-player swimming policy (fork)
+
+Swimming remains enabled by default. Set `[Players] DisableSwimming = true` in
+`config.toml`, or `server.Config.DisableSwimming = true`, to disable the swimming
+pose for new connections. `player.Config.DisableSwimming` provides the same
+initial policy when creating a player directly. On the player's world owner,
+`p.SetSwimmingEnabled(false)` disables it and `p.SetSwimmingEnabled(true)` allows
+the next swim request; `p.SwimmingEnabled()` reports the policy.
+
+Disabling an active swim restores the normal pose, collider and eye height for
+all viewers. Rejected legacy and modern swim inputs correct the controlling
+client's swimming metadata. This is not an immobilisation or water-access rule:
+ordinary water movement, crawling and gliding are unchanged. The policy follows
+the handle across worlds but is intentionally omitted from `Player.Data()` and
+the default player database. Reconnects use the configured default again;
+gameplay may apply a per-player override after joining. No protocol layout or
+version-specific adapter changes are required. Real-client pose prediction and
+animation still need validation for each supported client family.
+
 ## Contributing
 Contributions are very welcome! Issues, pull requests and feature requests are highly appreciated. Opening a pull
 request? Consider joining our [Discord server](https://discord.gg/U4kFWHhTNR) to discuss your changes! Also have a read through the

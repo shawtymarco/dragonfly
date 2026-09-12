@@ -27,6 +27,11 @@ type Config struct {
 	Locale   language.Tag
 	GameMode world.GameMode
 	Operator bool
+	// DisableSwimming prevents entering the swimming pose. Its zero value keeps
+	// swimming enabled. This is a session policy, not persisted player data:
+	// Data omits it, and a new session must apply its own policy again.
+	// SetSwimmingEnabled can override it on the player's world owner.
+	DisableSwimming bool
 
 	Position               mgl64.Vec3
 	Rotation               cube.Rotation
@@ -74,6 +79,7 @@ func (cfg Config) Apply(data *world.EntityData) {
 		heldSlot:            &slot,
 		gameMode:            conf.GameMode,
 		operator:            conf.Operator,
+		swimmingDisabled:    conf.DisableSwimming,
 		skin:                conf.Skin,
 		enchantSeed:         conf.EnchantmentSeed,
 		s:                   conf.Session,

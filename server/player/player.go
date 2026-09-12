@@ -62,6 +62,7 @@ type playerData struct {
 
 	sneaking, sprinting, swimming, gliding, crawling, flying,
 	invisible, immobile, onGround, usingItem bool
+	swimmingDisabled bool
 
 	sleeping bool
 	sleepPos cube.Pos
@@ -1227,9 +1228,38 @@ func (p *Player) StopSneaking() {
 	p.updateState()
 }
 
-// StartSwimming makes the player start swimming if it is not currently doing so. If the player is sneaking
-// while StartSwimming is called, the sneaking is stopped.
+// SwimmingEnabled reports whether the player may enter the swimming pose.
+// Swimming is enabled by default and is independent of movement through water.
+func (p *Player) SwimmingEnabled() bool {
+	return !p.swimmingDisabled
+}
+
+// SetSwimmingEnabled controls whether the player may enter the swimming pose.
+// Disabling it also stops an active swim and updates the pose for all viewers.
+// Enabling it permits the next swim request, but does not start swimming itself.
+// This session policy survives world changes, but is not included in Data.
+// Like other Player mutations, this must be called on the player's world owner.
+func (p *Player) SetSwimmingEnabled(enabled bool) {
+	if p.SwimmingEnabled() == enabled {
+		return
+	}
+	p.swimmingDisabled = !enabled
+	if !enabled {
+		p.StopSwimming()
+	}
+}
+
+// StartSwimming makes the player start swimming if it is not currently doing so
+// and SwimmingEnabled is true. If the player is sneaking when swimming starts,
+// the sneaking is stopped.
 func (p *Player) StartSwimming() {
+	if !p.SwimmingEnabled() {
+		// Both legacy PlayerAction and modern PlayerAuthInput reach this method.
+		// Correct the requesting client's predicted pose without changing its
+		// movement, sneaking state or broadcasting a rejected swim to viewers.
+		p.session().ViewEntityState(p)
+		return
+	}
 	if p.swimming {
 		return
 	}

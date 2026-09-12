@@ -72,6 +72,10 @@ type Config struct {
 	// MaxChunkRadius is the maximum view distance that each player may have,
 	// measured in chunks. A chunk radius generally leads to more memory usage.
 	MaxChunkRadius int
+	// DisableSwimming disables the swimming pose for newly connected players.
+	// It does not immobilise players or prevent moving through water. Gameplay
+	// may override this session default using Player.SetSwimmingEnabled.
+	DisableSwimming bool
 	// JoinMessage, QuitMessage and ShutdownMessage are the messages to send for
 	// when a player joins or quits the server and when the server shuts down,
 	// kicking all online players. If set, JoinMessage and QuitMessage must have
@@ -338,6 +342,9 @@ type UserConfig struct {
 		// in their settings. If they try to set it above this number, it will
 		// be capped and set to the max.
 		MaximumChunkRadius int
+		// DisableSwimming disables the swimming pose for new sessions. Gameplay
+		// can still enable or disable it for an individual player at runtime.
+		DisableSwimming bool
 		// SaveData controls whether a player's data will be saved and loaded.
 		// If true, the server will use the default LevelDB data provider and if
 		// false, an empty provider will be used. To use your own provider, turn
@@ -374,6 +381,7 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		MuteEmoteChat:           uc.Server.MuteEmoteChat,
 		MaxPlayers:              uc.Players.MaxCount,
 		MaxChunkRadius:          uc.Players.MaximumChunkRadius,
+		DisableSwimming:         uc.Players.DisableSwimming,
 		DisableResourceBuilding: !uc.Resources.AutoBuildPack,
 		DisableNether:           uc.World.DisableNether,
 		DisableEnd:              uc.World.DisableEnd,

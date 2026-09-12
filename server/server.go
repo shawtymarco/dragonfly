@@ -652,6 +652,7 @@ func (srv *Server) createPlayer(id uuid.UUID, conn session.Conn, conf player.Con
 	conf.Skin = srv.parseSkin(conn.ClientData())
 	conf.Session = s
 	conf.Operator = srv.IsOp(conf.Name)
+	conf.DisableSwimming = conf.DisableSwimming || srv.conf.DisableSwimming
 
 	handle := world.EntitySpawnOpts{Position: conf.Position, ID: id}.New(player.Type, conf)
 	s.SetHandle(handle, conf.Skin)
