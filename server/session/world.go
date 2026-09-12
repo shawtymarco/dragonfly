@@ -94,9 +94,24 @@ func (s *Session) ViewEntity(e world.Entity) {
 	}
 	var runtimeID uint64
 
-	_, controllable := e.(Controllable)
+	c, controllable := e.(Controllable)
+	var actualSession *Session
+	var actualPlayer bool
+	if controllable {
+		actualSession, actualPlayer = sessions.Lookup(c.UUID())
+		if actualPlayer && actualSession.ent != e.H() {
+			return
+		}
+	}
 
 	s.entityMutex.Lock()
+	if controllable {
+		owner := s.listedPlayers[c.UUID()]
+		if owner != nil && owner != e.H() || actualPlayer && owner == nil {
+			s.entityMutex.Unlock()
+			return
+		}
+	}
 	if s.shownEntities == nil {
 		s.shownEntities = make(map[*world.EntityHandle]struct{})
 	}
@@ -121,18 +136,27 @@ func (s *Session) ViewEntity(e world.Entity) {
 	id := e.H().Type().EncodeEntity()
 	switch v := e.(type) {
 	case Controllable:
-		_, actualPlayer := sessions.Lookup(v.UUID())
-		if !actualPlayer {
-			s.writePacket(&packet.PlayerList{Entries: []protocol.PlayerListEntry{{
-				ActionType:     protocol.PlayerListActionAdd,
-				UUID:           v.UUID(),
-				EntityUniqueID: int64(runtimeID),
-				Username:       v.Name(),
-				BuildPlatform:  int32(protocol.DeviceUnknown),
-				Skin:           skinToProtocol(v.Skin()),
-			}}})
+		entry := protocol.PlayerListEntry{
+			ActionType: protocol.PlayerListActionAdd, UUID: v.UUID(), EntityUniqueID: int64(runtimeID),
+			Username: v.Name(), BuildPlatform: int32(protocol.DeviceUnknown), Skin: skinToProtocol(v.Skin()),
+		}
+		if actualPlayer {
+			entry.XUID = actualSession.conn.IdentityData().XUID
 		}
 
+		// Keep registration and spawn together, and reject a session replaced
+		// while metadata/skin were prepared. Every real respawn reasserts the
+		// current identity; a retained runtime ID is not proof of client state.
+		s.entityMutex.Lock()
+		owner := s.listedPlayers[v.UUID()]
+		if s.entityRuntimeIDs[e.H()] != runtimeID || owner != nil && owner != e.H() || actualPlayer && owner == nil {
+			delete(s.shownEntities, e.H())
+			delete(s.pendingPlayers, e.H())
+			delete(s.playerDimensions, runtimeID)
+			s.entityMutex.Unlock()
+			return
+		}
+		s.writePacket(&packet.PlayerList{Entries: []protocol.PlayerListEntry{entry}})
 		s.writePacket(&packet.AddPlayer{
 			EntityMetadata:  metadata,
 			EntityRuntimeID: runtimeID,
@@ -157,9 +181,8 @@ func (s *Session) ViewEntity(e world.Entity) {
 				ActionType: protocol.PlayerListActionRemove,
 				UUID:       v.UUID(),
 			}}})
-		} else {
-			s.ViewSkin(e)
 		}
+		s.entityMutex.Unlock()
 		return
 	case *entity.Ent:
 		if provider, ok := v.Behaviour().(NetworkItemEntityBehaviour); ok {
@@ -1490,9 +1513,17 @@ func (s *Session) ViewEmote(player world.Entity, emote uuid.UUID) {
 // ViewSkin ...
 func (s *Session) ViewSkin(e world.Entity) {
 	if v, ok := e.(Controllable); ok {
+		current, registered := sessions.Lookup(v.UUID())
+		skin := skinToProtocol(v.Skin())
+		s.entityMutex.Lock()
+		defer s.entityMutex.Unlock()
+		owner := s.listedPlayers[v.UUID()]
+		if owner != nil && owner != e.H() || registered && (current.ent != e.H() || owner == nil) {
+			return
+		}
 		s.writePacket(&packet.PlayerSkin{
 			UUID: v.UUID(),
-			Skin: skinToProtocol(v.Skin()),
+			Skin: skin,
 		})
 	}
 }

@@ -63,6 +63,9 @@ type Session struct {
 	currentEntityRuntimeID uint64
 	// entityRuntimeIDs holds the runtime IDs of entities shown to the session.
 	entityRuntimeIDs map[*world.EntityHandle]uint64
+	// listedPlayers owns each client player-list UUID independently of actors.
+	// A departing session must never remove its replacement's identity.
+	listedPlayers    map[uuid.UUID]*world.EntityHandle
 	entities         map[uint64]*world.EntityHandle
 	hiddenEntities   map[uuid.UUID]struct{}
 	shownEntities    map[*world.EntityHandle]struct{}
@@ -232,6 +235,7 @@ func (conf Config) New(conn Conn) *Session {
 		handlers:               map[uint32]packetHandler{},
 		packets:                make(chan outboundMessage, 256),
 		entityRuntimeIDs:       map[*world.EntityHandle]uint64{},
+		listedPlayers:          map[uuid.UUID]*world.EntityHandle{},
 		entities:               map[uint64]*world.EntityHandle{},
 		hiddenEntities:         map[uuid.UUID]struct{}{},
 		shownEntities:          map[*world.EntityHandle]struct{}{},
@@ -405,6 +409,7 @@ func (s *Session) close(tx *world.Tx, c Controllable) {
 	sessions.Remove(s, c)
 	s.entityMutex.Lock()
 	clear(s.entityRuntimeIDs)
+	clear(s.listedPlayers)
 	clear(s.shownEntities)
 	clear(s.pendingPlayers)
 	clear(s.playerDimensions)

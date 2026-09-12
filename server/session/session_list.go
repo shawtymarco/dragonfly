@@ -57,25 +57,42 @@ func (l *sessionList) Lookup(id uuid.UUID) (*Session, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if index := slices.IndexFunc(l.s, func(session *Session) bool {
-		return session.ent.UUID() == id
-	}); index != -1 {
-		return l.s[index], true
+	// A reconnect can arrive after the old session leaves Server's online map
+	// but before its world and player-list cleanup finishes. Prefer the newest.
+	for i := len(l.s) - 1; i >= 0; i-- {
+		if l.s[i].ent.UUID() == id {
+			return l.s[i], true
+		}
 	}
 	return nil, false
 }
 
 func (l *sessionList) sendSessionTo(s, to *Session) {
+	if s != to && s.ent.UUID() == to.ent.UUID() {
+		// Never replace a connection's own actor with its overlapping session.
+		return
+	}
 	runtimeID := uint64(selfEntityRuntimeID)
 
 	to.entityMutex.Lock()
-	if s != to {
-		to.currentEntityRuntimeID += 1
-		runtimeID = to.currentEntityRuntimeID
+	defer to.entityMutex.Unlock()
+	if to.listedPlayers == nil {
+		to.listedPlayers = make(map[uuid.UUID]*world.EntityHandle)
 	}
+	if previous := to.listedPlayers[s.ent.UUID()]; previous != nil && previous != s.ent {
+		to.removeListedPlayer(previous)
+	}
+	if s != to {
+		if existing, ok := to.entityRuntimeIDs[s.ent]; ok {
+			runtimeID = existing
+		} else {
+			to.currentEntityRuntimeID += 1
+			runtimeID = to.currentEntityRuntimeID
+		}
+	}
+	to.listedPlayers[s.ent.UUID()] = s.ent
 	to.entityRuntimeIDs[s.ent] = runtimeID
 	to.entities[runtimeID] = s.ent
-	to.entityMutex.Unlock()
 
 	to.writePacket(&packet.PlayerList{
 		Entries: []protocol.PlayerListEntry{{
@@ -92,16 +109,31 @@ func (l *sessionList) sendSessionTo(s, to *Session) {
 
 func (l *sessionList) unsendSessionFrom(s, from *Session) {
 	from.entityMutex.Lock()
-	delete(from.shownEntities, s.ent)
-	delete(from.pendingPlayers, s.ent)
-	delete(from.entities, from.entityRuntimeIDs[s.ent])
-	delete(from.entityRuntimeIDs, s.ent)
-	from.entityMutex.Unlock()
+	defer from.entityMutex.Unlock()
+	if from.listedPlayers[s.ent.UUID()] != s.ent {
+		return
+	}
+	from.removeListedPlayer(s.ent)
+}
 
-	from.writePacket(&packet.PlayerList{
+// removeListedPlayer retires the actor before its UUID and runtime ID can be
+// reused. entityMutex protects both the ownership change and packet ordering.
+func (s *Session) removeListedPlayer(handle *world.EntityHandle) {
+	id := s.entityRuntimeIDs[handle]
+	if _, shown := s.shownEntities[handle]; shown && handle != s.ent {
+		s.writePacket(&packet.RemoveActor{EntityUniqueID: int64(id)})
+	}
+	delete(s.shownEntities, handle)
+	delete(s.pendingPlayers, handle)
+	delete(s.playerDimensions, id)
+	delete(s.entities, id)
+	delete(s.entityRuntimeIDs, handle)
+	delete(s.listedPlayers, handle.UUID())
+
+	s.writePacket(&packet.PlayerList{
 		Entries: []protocol.PlayerListEntry{{
 			ActionType: protocol.PlayerListActionRemove,
-			UUID:       s.ent.UUID(),
+			UUID:       handle.UUID(),
 		}},
 	})
 }
