@@ -1585,6 +1585,15 @@ func (p *Player) HeldItems() (mainHand, offHand item.Stack) {
 // SetHeldItems sets items to the main hand and the off-hand of the player. The Stacks passed may be empty
 // (Stack.Empty()) to clear the held item.
 func (p *Player) SetHeldItems(mainHand, offHand item.Stack) {
+	if p.usingItem {
+		held, _ := p.HeldItems()
+		if isConsumable(held) && (mainHand.Empty() || !held.Comparable(mainHand)) {
+			// Consuming the last item or replacing it also ends continuous use.
+			// Clear metadata before inventory callbacks or effects can reassert
+			// the old using flag on the client's newly selected item.
+			p.ReleaseItem()
+		}
+	}
 	_ = p.inv.SetItem(int(*p.heldSlot), mainHand)
 	_ = p.offHand.SetItem(0, offHand)
 }
@@ -1611,7 +1620,10 @@ func (p *Player) SetHeldSlot(to int) error {
 		return nil
 	}
 	*p.heldSlot = uint32(to)
-	p.usingItem = false
+	if p.usingItem {
+		p.usingItem = false
+		p.updateItemUseState()
+	}
 
 	for _, viewer := range p.viewers() {
 		viewer.ViewEntityItems(p)
@@ -1861,13 +1873,14 @@ func continuesItemUse(it world.Item) bool {
 // ReleaseItem either aborts the using of the item or finished it, depending on the time that elapsed since
 // the item started being used.
 func (p *Player) ReleaseItem() {
-	if held, _ := p.HeldItems(); isConsumable(held) {
-		// Match upstream consumption cancellation without changing the fork's
-		// bow/chargeable release and prediction behavior.
-		p.usingItem = false
+	if !p.usingItem {
 		return
 	}
-	if !p.usingItem {
+	if held, _ := p.HeldItems(); isConsumable(held) {
+		// Consumption starts publish their state to the controlling client too.
+		// Publish the matching stop so its next swing is not left in item use.
+		p.usingItem = false
+		p.updateState()
 		return
 	}
 	if !p.canRelease() || !p.GameMode().AllowsInteraction() {

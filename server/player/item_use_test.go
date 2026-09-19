@@ -145,7 +145,7 @@ func TestConsumableRepeatsKeepUpstreamContinuousUse(t *testing.T) {
 		pl.usingSince = time.Now().Add(-2 * time.Second)
 		pl.UseItem()
 		held, _ = pl.HeldItems()
-		if !pl.usingItem || !held.Empty() || handler.consumes != 2 {
+		if pl.usingItem || !held.Empty() || handler.consumes != 2 {
 			t.Fatalf("final consume state=%v held=%+v consumes=%d", pl.usingItem, held, handler.consumes)
 		}
 		pl.ReleaseItem()
