@@ -101,7 +101,7 @@ type Consumer interface {
 
 // DefaultConsumeDuration is the default duration that consuming an item takes. Dried kelp takes half this
 // time to be consumed.
-const DefaultConsumeDuration = (time.Second * 161) / 100
+const DefaultConsumeDuration = (time.Second * 136) / 100
 
 // Drinkable represents a custom item that can be drunk. It is used to make the client show the correct drinking
 // animation when a player is using an item. This will only have an effect on non-vanilla items.
