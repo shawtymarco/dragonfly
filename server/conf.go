@@ -426,6 +426,10 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 	if err != nil {
 		return conf, err
 	}
+	listeners, err := uc.transportListeners()
+	if err != nil {
+		return conf, err
+	}
 	if !uc.Server.DisableJoinQuitMessages {
 		conf.JoinMessage, conf.QuitMessage = chat.MessageJoin, chat.MessageQuit
 	}
