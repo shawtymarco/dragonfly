@@ -73,7 +73,7 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 			"action", action,
 			"using_before", usingBefore,
 			"using_after", c.UsingItem())
-	case protocol.PlayerActionStartBuildingBlock:
+	case protocol.PlayerActionInteractWithBlock:
 		// Don't do anything for this action.
 	case protocol.PlayerActionCreativePlayerDestroyBlock:
 		// Don't do anything for this action.

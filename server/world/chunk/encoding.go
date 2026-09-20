@@ -58,8 +58,13 @@ type NetworkChunkFormatController interface {
 	NetworkBiomes2D() bool
 }
 
+// BiomeRuntimeIDMapper optionally maps biome IDs before palette packing and hashing.
+type BiomeRuntimeIDMapper interface {
+	MapBiomeRuntimeID(uint32) (uint32, bool)
+}
+
 // NetworkEncodingWithBlockMapper returns a network encoding that maps block
-// palettes before packing them. Biome palettes remain unchanged.
+// palettes and, when supplied by the mapper, biome palettes before packing them.
 func NetworkEncodingWithBlockMapper(mapper BlockRuntimeIDMapper) Encoding {
 	if mapper == nil {
 		return NetworkEncoding
@@ -90,6 +95,8 @@ func (biomePaletteEncoding) decode(buf *bytes.Buffer) (uint32, error) {
 // between runtime IDs and block states.
 type BlockPaletteEncoding struct {
 	Blocks BlockRegistry
+	// legacy, if non-nil, is set when an entry older than CurrentBlockVersion is decoded.
+	legacy *bool
 }
 
 func (bpe BlockPaletteEncoding) encode(buf *bytes.Buffer, v uint32) {
@@ -143,6 +150,7 @@ func (bpe BlockPaletteEncoding) DecodeBlockState(m map[string]any) (uint32, erro
 	// Block upgrades may consume or mutate properties. Legacy mappings are
 	// shared globally, so always detach the decoded state before upgrading it.
 	state = maps.Clone(state)
+	originalPropertyCount := len(state)
 
 	// Upgrade the block state if necessary.
 	upgraded := blockupgrader.Upgrade(blockupgrader.BlockState{
@@ -150,6 +158,13 @@ func (bpe BlockPaletteEncoding) DecodeBlockState(m map[string]any) (uint32, erro
 		Properties: state,
 		Version:    version,
 	})
+
+	if bpe.legacy != nil && (version < CurrentBlockVersion || len(upgraded.Properties) > originalPropertyCount) {
+		// Any state added since this entry was written was defaulted by the upgrade above, which is wrong
+		// for states derived from surrounding blocks. Some releases add such properties without
+		// changing the persisted block version, so property additions must trigger repair too.
+		*bpe.legacy = true
+	}
 
 	v, ok := bpe.Blocks.StateToRuntimeID(upgraded.Name, upgraded.Properties)
 	if !ok {
@@ -262,9 +277,29 @@ func (mappedNetworkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteS
 
 func (encoding mappedNetworkEncoding) mapStorage(storage *PalettedStorage, paletteEncoding paletteEncoding) *PalettedStorage {
 	if _, blockPalette := paletteEncoding.(BlockPaletteEncoding); !blockPalette {
+		if mapper, ok := encoding.mapper.(BiomeRuntimeIDMapper); ok {
+			return remapPalettedStorage(storage, biomeBlockMapper{mapper})
+		}
 		return storage
 	}
 	return remapPalettedStorage(storage, encoding.mapper)
+}
+
+type biomeBlockMapper struct{ BiomeRuntimeIDMapper }
+
+func (m biomeBlockMapper) MapBlockRuntimeID(id uint32) (uint32, bool) {
+	return m.MapBiomeRuntimeID(id)
+}
+
+func (encoding mappedNetworkEncoding) mapBiomeRuntimeID(id uint32) uint32 {
+	if mapper, ok := encoding.mapper.(BiomeRuntimeIDMapper); ok {
+		mapped, valid := mapper.MapBiomeRuntimeID(id)
+		if valid {
+			return mapped
+		}
+		return 0
+	}
+	return id
 }
 
 func (encoding mappedNetworkEncoding) canReuseBiomePalettes() bool {

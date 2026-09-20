@@ -11,8 +11,8 @@ const (
 	SubChunkVersion = 9
 	// CurrentBlockVersion is the current version of blocks (states) of the game. This version is composed
 	// of 4 bytes indicating a version, interpreted as a big endian int. The current version represents
-	// 1.16.0.14 {1, 16, 0, 14}.
-	CurrentBlockVersion int32 = 18040335
+	// 1.21.60.33 {1, 21, 60, 33}.
+	CurrentBlockVersion int32 = 18168865
 )
 
 var (
@@ -117,14 +117,14 @@ func encodeConfiguredNetworkChunk(c *Chunk, e Encoding, format NetworkChunkForma
 		}
 	}
 	if format.NetworkBiomes2D() {
-		data.Biomes = encodeBiomes2D(c, minY, maxY)
+		data.Biomes = encodeBiomes2D(c, e, minY, maxY)
 	} else {
 		data.Biomes = EncodeBiomes(c, e)
 	}
 	return data
 }
 
-func encodeBiomes2D(c *Chunk, minY, maxY int16) []byte {
+func encodeBiomes2D(c *Chunk, e Encoding, minY, maxY int16) []byte {
 	biomes := make([]byte, 256)
 	for x := uint8(0); x < 16; x++ {
 		for z := uint8(0); z < 16; z++ {
@@ -135,7 +135,11 @@ func encodeBiomes2D(c *Chunk, minY, maxY int16) []byte {
 					break
 				}
 			}
-			biomes[int(z)<<4|int(x)] = byte(c.Biome(x, y, z))
+			id := c.Biome(x, y, z)
+			if mapper, ok := e.(interface{ mapBiomeRuntimeID(uint32) uint32 }); ok {
+				id = mapper.mapBiomeRuntimeID(id)
+			}
+			biomes[int(z)<<4|int(x)] = byte(id)
 		}
 	}
 	return biomes
