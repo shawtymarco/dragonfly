@@ -2035,9 +2035,6 @@ func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec
 		if deriver, ok := ib.(world.StateDeriver); ok {
 			ib = deriver.DeriveState(replacedPos, p.tx)
 		}
-		if deriver, ok := ib.(world.StateDeriver); ok {
-			ib = deriver.DeriveState(replacedPos, p.tx)
-		}
 		if !p.placeBlock(replacedPos, ib, false) || p.GameMode().CreativeInventory() {
 			return true
 		}
