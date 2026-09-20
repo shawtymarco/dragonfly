@@ -1359,14 +1359,20 @@ func (w *World) removeViewer(tx *Tx, pos ChunkPos, loader *Loader) {
 	if !ok {
 		return
 	}
-	if i := slices.Index(c.loaders, loader); i != -1 {
-		c.viewers = slices.Delete(c.viewers, i, i+1)
-		c.loaders = slices.Delete(c.loaders, i, i+1)
+	i := slices.Index(c.loaders, loader)
+	if i == -1 {
+		return
 	}
+	// ChangeWorld queues removal on the source owner. The loader may already
+	// be closed (or viewing another world) when this runs, so use the viewer
+	// registered with this column instead of the loader's mutable viewer.
+	viewer := c.viewers[i]
+	c.viewers = slices.Delete(c.viewers, i, i+1)
+	c.loaders = slices.Delete(c.loaders, i, i+1)
 
 	// Hide all entities in the chunk from the viewer.
 	for _, entity := range c.Entities {
-		loader.viewer.HideEntity(entity.mustEntity(tx))
+		viewer.HideEntity(entity.mustEntity(tx))
 	}
 }
 
