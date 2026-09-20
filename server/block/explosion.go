@@ -27,6 +27,9 @@ type ExplosionConfig struct {
 	// SuppressUnderwaterImpact prevents the explosion from affecting entities through liquid layers. Bedrock Edition
 	// applies this to every explosion.
 	SuppressUnderwaterImpact bool
+	// IgnoreWaterResistance makes water transparent to the block-destruction rays. Solid blocks within water
+	// keep their own blast resistance. Other liquids are unaffected.
+	IgnoreWaterResistance bool
 	// ItemDropChance specifies how item drops should be handled. By default,
 	// the item drop chance is 1/Size. If negative, no items will be dropped by
 	// the explosion. If set to 1 or higher, all items are dropped.
@@ -119,7 +122,7 @@ func (c ExplosionConfig) Explode(tx *world.Tx, src world.ExplosionSource) {
 	}
 
 	estimatedBlocks := max(32, min(4096, int(size*size*size*16)))
-	if _, ok := tx.Liquid(cube.PosFromVec3(explosionPos)); ok {
+	if liquid, ok := tx.Liquid(cube.PosFromVec3(explosionPos)); ok && !(c.IgnoreWaterResistance && isWaterLiquid(liquid)) {
 		// Liquids such as water stop a regular TNT blast at the source, so avoid reserving space for a full blast.
 		estimatedBlocks = 32
 	}
@@ -132,9 +135,13 @@ func (c ExplosionConfig) Explode(tx *world.Tx, src world.ExplosionSource) {
 			info, ok := blockCache[current]
 			if !ok {
 				currentBlock := tx.Block(current)
-				if l, ok := tx.Liquid(current); ok {
-					info.resistance = l.BlastResistance()
+				liquid, hasLiquid := tx.Liquid(current)
+				ignoreWater := hasLiquid && c.IgnoreWaterResistance && isWaterLiquid(liquid)
+				if hasLiquid && !ignoreWater {
+					info.resistance = liquid.BlastResistance()
 					info.flags = explosionBlockResists
+				} else if primary, ok := currentBlock.(world.Liquid); ok && ignoreWater && isWaterLiquid(primary) {
+					// Treat a primary water block as air. A solid waterlogged block takes the branch below.
 				} else if i, ok := currentBlock.(Breakable); ok {
 					info.resistance = i.BreakInfo().BlastResistance
 					info.flags = explosionBlockResists
@@ -218,6 +225,15 @@ func (c ExplosionConfig) Explode(tx *world.Tx, src world.ExplosionSource) {
 
 	tx.AddParticle(explosionPos, c.Particle)
 	tx.PlaySound(explosionPos, c.Sound)
+}
+
+func isWaterLiquid(liquid world.Liquid) bool {
+	switch liquid.(type) {
+	case Water, *Water:
+		return true
+	default:
+		return false
+	}
 }
 
 // exposure returns the exposure of an explosion to an entity, used to calculate the impact of an explosion.

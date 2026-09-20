@@ -814,8 +814,20 @@ func (p *Player) FinalDamageFrom(dmg float64, src world.DamageSource) float64 {
 func (p *Player) Explode(src world.ExplosionSource, impact float64) {
 	explosionPos := src.Position()
 	diff := p.Position().Sub(explosionPos)
-	p.Hurt(math.Floor((impact*impact+impact)*3.5*src.Size()*2+1), entity.ExplosionDamageSource{Source: src})
-	p.knockBack(explosionPos, impact, diff[1]/diff.Len()*impact)
+	damageMultiplier, knockbackMultiplier := 1.0, 1.0
+	if modifiers, ok := src.(interface {
+		ExplosionDamageMultiplier() float64
+		ExplosionKnockbackMultiplier() float64
+	}); ok {
+		if multiplier := modifiers.ExplosionDamageMultiplier(); multiplier > 0 {
+			damageMultiplier = multiplier
+		}
+		if multiplier := modifiers.ExplosionKnockbackMultiplier(); multiplier > 0 {
+			knockbackMultiplier = multiplier
+		}
+	}
+	p.Hurt(math.Floor((impact*impact+impact)*3.5*src.Size()*2+1)*damageMultiplier, entity.ExplosionDamageSource{Source: src})
+	p.knockBack(explosionPos, impact*knockbackMultiplier, diff[1]/diff.Len()*impact*knockbackMultiplier)
 }
 
 // SetAbsorption sets the absorption health of a player. This extra health shows as golden hearts and do not
