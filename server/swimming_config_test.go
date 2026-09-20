@@ -72,7 +72,7 @@ func TestSwimmingNewConnectionsApplyDefaultsBeforeSpawn(t *testing.T) {
 					incoming.s.CloseConnection()
 					_ = tx.RemoveEntity(p).Close()
 				}()
-				want := !(serverDisabled || playerDisabled)
+				want := !serverDisabled && !playerDisabled
 				p.StartSwimming()
 				if p.SwimmingEnabled() != want || p.Swimming() != want {
 					t.Fatalf("server disabled=%t, player disabled=%t: enabled=%t, swimming=%t", serverDisabled, playerDisabled, p.SwimmingEnabled(), p.Swimming())

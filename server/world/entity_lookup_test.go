@@ -53,7 +53,7 @@ type conditionCheckingEntityType struct{ taskTestEntityType }
 
 func (conditionCheckingEntityType) Open(tx *Tx, handle *EntityHandle, data *EntityData) Entity {
 	handle.cond.L.Lock()
-	handle.cond.L.Unlock()
+	handle.cond.L.Unlock() //nolint:staticcheck // Lock probe: lookup must release the condition before Open.
 	return taskTestEntityType{}.Open(tx, handle, data)
 }
 

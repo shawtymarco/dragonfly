@@ -218,6 +218,13 @@ func (b *hashBuilder) writeMethods(w io.Writer) {
 				bitSize += v
 			}
 		}
+		// ItemFrame's map bit is derived from its displayed stack. Keep it
+		// after the facing/glowing bits so regeneration preserves the existing
+		// state identity without hashing the rest of the block entity's item.
+		if name == "ItemFrame" {
+			h += " | uint64(boolByte(isMapItem(" + recvName + ".Item)))<<" + strconv.Itoa(bitSize)
+			bitSize++
+		}
 		if bitSize == 0 {
 			// No need to have a receiver name if we don't use any of the fields of the block.
 			recvName = ""
@@ -249,6 +256,10 @@ func (b *hashBuilder) ftype(structName, s string, expr ast.Expr, directives map[
 		return "", 0 // Ignore this field
 	default:
 		log.Fatalf("unknown field type %#v\n", expr)
+		return "", 0
+	}
+	if name == "Stack" && structName == "ItemFrame" {
+		// Its single derived map bit is appended after ordinary fields.
 		return "", 0
 	}
 	switch name {

@@ -1994,7 +1994,7 @@ func (p *Player) UseItemOnBlock(pos cube.Pos, face cube.Face, clickPos mgl64.Vec
 	b := p.tx.Block(pos)
 	_, fishingRod := i.Item().(item.FishingRod)
 	_, enderChest := b.(block.EnderChest)
-	if act, ok := b.(block.Activatable); ok && !(fishingRod && !enderChest) {
+	if act, ok := b.(block.Activatable); ok && (!fishingRod || enderChest) {
 		// If a player is sneaking, it will not activate the block clicked, unless it is not holding any
 		// items, in which case the block will be activated as usual.
 		if !p.Sneaking() || i.Empty() {
