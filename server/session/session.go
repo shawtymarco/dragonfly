@@ -48,6 +48,7 @@ type Session struct {
 	currentLines      atomic.Pointer[[]string]
 
 	chunkLoader                                       *world.Loader
+	chunkLoadingPaused                                bool
 	chunkRadius, requestedChunkRadius, maxChunkRadius int32
 	networkMaxChunkRadius                             int32
 	subChunkRequests                                  bool
@@ -562,6 +563,9 @@ func (s *Session) background() {
 // sendChunks sends the next up to 4 chunks to the connection. What chunks are loaded depends on the connection of
 // the chunk loader and the chunks that were previously loaded.
 func (s *Session) sendChunks(tx *world.Tx, c Controllable) {
+	if s.chunkLoadingPaused {
+		return
+	}
 	var worldSwitched bool
 	if w := tx.World(); s.chunkLoader.World() != w && w != nil {
 		worldSwitched = true
@@ -587,6 +591,15 @@ func (s *Session) sendChunks(tx *world.Tx, c Controllable) {
 	}
 	s.chunkLoader.Load(tx, toLoad)
 	s.flushPendingPlayers(tx)
+}
+
+// SetChunkLoadingPaused suspends automatic chunk loading while an application
+// prepares the player's initial state. Call it on the player's world owner,
+// immediately in the Accept callback to prevent initial chunks from loading.
+// It does not cancel chunk loads that have already been scheduled. Resuming
+// preserves the loader and starts delivery on the next session tick.
+func (s *Session) SetChunkLoadingPaused(paused bool) {
+	s.chunkLoadingPaused = paused
 }
 
 // handleWorldSwitch handles the player of the Session switching worlds.
