@@ -2630,11 +2630,14 @@ func (p *Player) teleport(pos mgl64.Vec3) {
 // position of the player.
 // Move also rotates the player, adding deltaYaw and deltaPitch to the respective values.
 func (p *Player) Move(deltaPos mgl64.Vec3, deltaYaw, deltaPitch float64) {
-	if p.Dead() || (deltaPos.ApproxEqual(mgl64.Vec3{}) && mgl64.FloatEqual(deltaYaw, 0) && mgl64.FloatEqual(deltaPitch, 0)) {
-		// PlayerAuthInput is emitted even while the player stands still. Do not let
-		// that stationary packet undo the airborne state required by noclip.
-		p.onGround = p.GameMode().HasCollision()
-		p.updateFallState(deltaPos.Y())
+	if p.Dead() {
+		return
+	}
+	if deltaPos.ApproxEqual(mgl64.Vec3{}) && mgl64.FloatEqual(deltaYaw, 0) && mgl64.FloatEqual(deltaPitch, 0) {
+		// Duplicate/stationary input is also possible in mid-air. Only actual
+		// support may settle the accumulated fall, including in this fast path.
+		p.onGround = p.checkOnGround()
+		p.updateFallState(0)
 		return
 	}
 	if p.immobile {
@@ -2692,7 +2695,7 @@ func (p *Player) Move(deltaPos mgl64.Vec3, deltaYaw, deltaPitch float64) {
 		p.session().ViewEntityState(p)
 	}
 
-	p.onGround = p.checkOnGround(deltaPos)
+	p.onGround = p.checkOnGround()
 	p.updateFallState(deltaPos.Y())
 
 	if p.Swimming() {
@@ -2718,7 +2721,7 @@ func (p *Player) Displace(deltaPos mgl64.Vec3) {
 	}
 	p.data.Pos, p.data.Vel = res, velocity
 	p.checkBlockCollisions(deltaPos)
-	p.onGround = p.checkOnGround(deltaPos)
+	p.onGround = p.checkOnGround()
 	p.updateFallState(deltaPos[1])
 }
 
@@ -3045,7 +3048,7 @@ func (p *Player) Tick(tx *world.Tx, current int64) {
 	}
 
 	p.checkBlockCollisions(p.data.Vel)
-	p.onGround = p.checkOnGround(mgl64.Vec3{})
+	p.onGround = p.checkOnGround()
 	p.checkEntitySteppers()
 
 	p.effects.Tick(p, p.tx)
@@ -3415,21 +3418,31 @@ func (p *Player) checkEntitySteppers() {
 }
 
 // checkOnGround checks if the player is currently considered to be on the ground.
-func (p *Player) checkOnGround(deltaPos mgl64.Vec3) bool {
+func (p *Player) checkOnGround() bool {
 	if !p.GameMode().HasCollision() {
 		return false
 	}
-	box := Type.BBox(p).Translate(p.Position()).Extend(mgl64.Vec3{0, -0.05}).Extend(deltaPos.Mul(-1.0))
-	b := box.Grow(1)
+	box := Type.BBox(p).Translate(p.Position())
+	min, max := box.Min(), box.Max()
+	// Search near the feet, including blocks whose models extend outside their
+	// own cell (such as 1.5-block-tall fences). A body or swept-path intersection
+	// says nothing about support: walls, ceilings and departed ledges must not
+	// end a fall. Allow only the small error from client float32 coordinates.
+	const tolerance = 0.001
+	b := cube.Box(min[0], min[1], min[2], max[0], min[1], max[2]).Grow(1)
 
 	epsilon := mgl64.Vec3{mgl64.Epsilon, mgl64.Epsilon, mgl64.Epsilon}
 	low, high := cube.PosFromVec3(b.Min().Add(epsilon)), cube.PosFromVec3(b.Max().Sub(epsilon))
 	for x := low[0]; x <= high[0]; x++ {
 		for z := low[2]; z <= high[2]; z++ {
-			for y := low[1]; y < high[1]; y++ {
+			for y := low[1]; y <= high[1]; y++ {
 				pos := cube.Pos{x, y, z}
 				for _, bb := range p.tx.Block(pos).Model().BBox(pos, p.tx) {
-					if bb.Translate(pos.Vec3()).IntersectsWith(box) {
+					bb = bb.Translate(pos.Vec3())
+					bmin, bmax := bb.Min(), bb.Max()
+					if math.Abs(bmax[1]-min[1]) <= tolerance &&
+						bmax[0]-min[0] > 1e-5 && max[0]-bmin[0] > 1e-5 &&
+						bmax[2]-min[2] > 1e-5 && max[2]-bmin[2] > 1e-5 {
 						return true
 					}
 				}
