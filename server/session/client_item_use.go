@@ -1,6 +1,10 @@
 package session
 
-import "github.com/df-mc/dragonfly/server/item"
+import (
+	"time"
+
+	"github.com/df-mc/dragonfly/server/item"
+)
 
 type clientItemUsePrediction struct {
 	slot      int
@@ -44,4 +48,23 @@ func (s *Session) predictedHeldItemMatches(slot int, after item.Stack) bool {
 	prediction := s.clientItemUsePrediction.Load()
 	return prediction != nil && prediction.matchHeld && prediction.slot == slot &&
 		(after.Equal(prediction.held) || interactionPredictionCompatible(after, prediction.held))
+}
+
+// FlushItemUse queues a flush after the preceding shot/charge feedback. Call it
+// on the controllable's world owner. Going through the writer preserves packet
+// order, including Spectrum's downstream Flush marker. Repeated input is capped
+// at one expedited flush per server tick; normal connection flushing continues.
+func (s *Session) FlushItemUse() {
+	if s == Nop {
+		return
+	}
+	now := time.Now()
+	if now.Before(s.nextItemUseFlush) {
+		return
+	}
+	s.nextItemUseFlush = now.Add(time.Second / 20)
+	select {
+	case s.packets <- outboundMessage{flush: true}:
+	case <-s.closeBackground:
+	}
 }

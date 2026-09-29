@@ -1799,12 +1799,16 @@ func (p *Player) UseItem() {
 	case item.Chargeable:
 		useCtx := p.useContext()
 		if !p.usingItem {
-			if !usable.ReleaseCharge(p, p.tx, useCtx) && usable.CanCharge(p, p.tx, useCtx) {
+			released := usable.ReleaseCharge(p, p.tx, useCtx)
+			if !released && usable.CanCharge(p, p.tx, useCtx) {
 				// If the item was not charged yet, start charging.
 				p.usingSince, p.usingItem = time.Now(), true
 			}
 			p.handleUseContext(useCtx)
 			p.updateItemUseState()
+			if released {
+				p.session().FlushItemUse()
+			}
 			return
 		}
 
@@ -1822,6 +1826,7 @@ func (p *Player) UseItem() {
 		p.session().SendChargeItemComplete()
 		p.handleUseContext(useCtx)
 		p.updateItemUseState()
+		p.session().FlushItemUse()
 	case item.Usable:
 		useCtx := p.useContext()
 		if !usable.Use(p.tx, p, useCtx) {
@@ -1877,8 +1882,8 @@ func continuesItemUse(it world.Item) bool {
 	}
 }
 
-// ReleaseItem makes the Player release the item it is currently using. This is only applicable for items that
-// implement the item.Releasable interface.
+// ReleaseItem makes the Player release the item it is currently using. Releasable items fire and Chargeable
+// items finish loading if ready; an early release cancels their use.
 // If the Player is not currently using any item, ReleaseItem returns immediately.
 // ReleaseItem either aborts the using of the item or finished it, depending on the time that elapsed since
 // the item started being used.
@@ -1886,11 +1891,28 @@ func (p *Player) ReleaseItem() {
 	if !p.usingItem {
 		return
 	}
-	if held, _ := p.HeldItems(); isConsumable(held) {
+	held, _ := p.HeldItems()
+	if isConsumable(held) {
 		// Consumption starts publish their state to the controlling client too.
 		// Publish the matching stop so its next swing is not left in item use.
 		p.usingItem = false
 		p.updateState()
+		return
+	}
+	if chargeable, ok := held.Item().(item.Chargeable); ok {
+		// A release may be the first input after the charge became ready. Do
+		// not discard a completed charge simply because no hold-repeat arrived
+		// at exactly that time. Releasing early still cancels without loading.
+		p.usingItem = false
+		if p.GameMode().AllowsInteraction() {
+			useCtx := p.useContext()
+			if chargeable.Charge(p, p.tx, useCtx, p.useDuration()) {
+				p.session().SendChargeItemComplete()
+				p.handleUseContext(useCtx)
+			}
+		}
+		p.updateItemUseState()
+		p.session().FlushItemUse()
 		return
 	}
 	if !p.canRelease() || !p.GameMode().AllowsInteraction() {
@@ -1910,6 +1932,7 @@ func (p *Player) ReleaseItem() {
 	i.Item().(item.Releasable).Release(p, p.tx, useCtx, dur)
 	p.handleUseContext(useCtx)
 	p.updateItemUseState()
+	p.session().FlushItemUse()
 }
 
 func isConsumable(held item.Stack) bool {
@@ -1950,9 +1973,10 @@ func (p *Player) canRelease() bool {
 
 // handleUseContext handles the item.UseContext after the item has been used.
 func (p *Player) handleUseContext(ctx *item.UseContext) {
-	i, left := p.HeldItems()
-
-	p.SetHeldItems(p.subtractItem(p.damageItem(i, ctx.Damage), ctx.CountSub), left)
+	if ctx.Damage != 0 || ctx.CountSub != 0 {
+		i, left := p.HeldItems()
+		p.SetHeldItems(p.subtractItem(p.damageItem(i, ctx.Damage), ctx.CountSub), left)
+	}
 	p.addNewItem(ctx)
 	for _, it := range ctx.ConsumedItems {
 		_, offHand := p.HeldItems()

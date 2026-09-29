@@ -66,7 +66,15 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 		// TODO: Properly utilize these actions.
 	case protocol.PlayerActionStopItemUseOn:
 		usingBefore := c.UsingItem()
-		endPrediction := s.beginClientPredictedItemUse(-1, nil)
+		// This stop can release a bow before its release transaction arrives.
+		// Its durability mutation is predicted just like the transaction path;
+		// echoing that slot can otherwise interrupt the client's next draw.
+		held, _ := c.HeldItems()
+		slot := -1
+		if s.heldSlot != nil {
+			slot = int(*s.heldSlot)
+		}
+		endPrediction := s.beginClientPredictedItemUse(slot, &held)
 		defer endPrediction()
 		c.ReleaseItem()
 		s.traceItemUse(c, "player_action_stop_item_use",

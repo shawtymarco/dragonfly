@@ -2,6 +2,7 @@ package session
 
 import (
 	"testing"
+	"time"
 
 	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/item/inventory"
@@ -102,4 +103,38 @@ func TestStartUsingItemInputIsTraceOnly(t *testing.T) {
 	if c.useCalls != 0 {
 		t.Fatalf("StartUsingItem input synthesized %d item uses", c.useCalls)
 	}
+}
+
+func TestItemUseFlushPreservesFIFOAndBoundsRepeatedRequests(t *testing.T) {
+	s := &Session{packets: make(chan outboundMessage, 8), closeBackground: make(chan struct{})}
+	first, last := &packet.SetTime{Time: 1}, &packet.SetTime{Time: 2}
+	s.writePacket(first)
+	s.FlushItemUse()
+	// Hold the rate window open without a timing-sensitive sleep.
+	s.nextItemUseFlush = time.Now().Add(time.Minute)
+	for range 100 {
+		s.FlushItemUse()
+	}
+	s.writePacket(last)
+	if len(s.packets) != 3 {
+		t.Fatalf("queued %d messages, want two packets and one flush", len(s.packets))
+	}
+	if message := <-s.packets; message.packet != first {
+		t.Fatal("flush overtook previously queued feedback")
+	}
+	if message := <-s.packets; !message.flush {
+		t.Fatal("missing flush barrier")
+	}
+	if message := <-s.packets; message.packet != last {
+		t.Fatal("flush reordered later feedback")
+	}
+	s.nextItemUseFlush = time.Time{}
+	s.FlushItemUse()
+	if message := <-s.packets; !message.flush {
+		t.Fatal("new rate window did not permit another flush")
+	}
+	close(s.closeBackground)
+	s.nextItemUseFlush = time.Time{}
+	s.packets = make(chan outboundMessage)
+	s.FlushItemUse()
 }

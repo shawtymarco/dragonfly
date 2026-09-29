@@ -95,6 +95,7 @@ type Session struct {
 	swingingArm                    atomic.Bool
 	changingSlot                   atomic.Bool
 	clientItemUsePrediction        atomic.Pointer[clientItemUsePrediction]
+	nextItemUseFlush               time.Time // Accessed only by the controllable's world owner.
 	itemUseTraceSequence           atomic.Uint64
 	itemUseTraceLimiter            itemUseTraceLimiter
 	changingDimension              atomic.Bool
@@ -140,6 +141,7 @@ type debugShapeUpdate struct {
 type outboundMessage struct {
 	packet      packet.Packet
 	traceResult *PacketTraceResult
+	flush       bool
 }
 
 // Conn represents a connection that packets are read from and written to by a Session. In addition, it holds some
@@ -288,6 +290,13 @@ func (conf Config) New(conn Conn) *Session {
 			case <-s.closeBackground:
 				return
 			case message := <-s.packets:
+				if message.flush {
+					if err := conn.Flush(); err != nil {
+						s.conf.Log.Debug("flush item use: " + err.Error())
+						s.CloseConnection()
+					}
+					continue
+				}
 				if message.packet != nil {
 					_ = conn.WritePacket(message.packet)
 					continue
