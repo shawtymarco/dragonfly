@@ -177,7 +177,6 @@ func skinToProtocol(s skin.Skin) protocol.Skin {
 		geometryVersion = []byte(protocol.CurrentVersion)
 	}
 	return protocol.Skin{
-		PlayFabID:                 s.PlayFabID,
 		SkinID:                    uuid.New().String(),
 		SkinResourcePatch:         s.ModelConfig.Encode(),
 		SkinImageWidth:            uint32(s.Bounds().Max.X),

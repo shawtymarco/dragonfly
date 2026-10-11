@@ -33,7 +33,15 @@ func TestSkinProtocolRoundTripPreservesAppearanceMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decoded.FullID != s.FullID || decoded.PlayFabID != s.PlayFabID || decoded.CapeID != s.CapeID || decoded.ProfileHash != s.ProfileHash {
+	// Native 1.26.60 removed Skin.PlayFabID. Historical wire adapters own that
+	// target-only field; native conversion must not manufacture a marketplace ID.
+	if decoded.PlayFabID != "" {
+		t.Fatal("native skin acquired a removed PlayFab identifier")
+	}
+	if s.PlayFabID != "playfab" {
+		t.Fatal("conversion mutated the input skin")
+	}
+	if decoded.FullID != s.FullID || decoded.CapeID != s.CapeID || decoded.ProfileHash != s.ProfileHash {
 		t.Fatalf("decoded identifiers = %+v", decoded)
 	}
 	if len(decoded.PersonaPieces) != 1 || decoded.PersonaPieces[0] != s.PersonaPieces[0] {
