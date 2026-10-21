@@ -24,6 +24,30 @@ type Fire struct {
 	// Age affects how fire extinguishes. Newly placed fire starts at 0 and the value has a 1/3 chance of incrementing
 	// each block tick.
 	Age int
+	// Connections and Up are the native neighbour-derived flame faces.
+	Connections Connections
+	Up          bool
+}
+
+// DeriveState preserves the fire's gameplay state while updating native flame
+// faces. Fire on solid/flammable support uses the floor model instead.
+func (f Fire) DeriveState(pos cube.Pos, src world.BlockSource) world.Block {
+	f.Connections, f.Up = Connections{}, false
+	if f.Type == SoulFire() {
+		return f
+	}
+	below := src.Block(pos.Side(cube.FaceDown))
+	if below.Model().FaceSolid(pos.Side(cube.FaceDown), cube.FaceUp, src) || flammableBlock(below) {
+		return f
+	}
+	f.Connections = Connections{
+		north: flammableBlock(src.Block(pos.Side(cube.FaceNorth))),
+		east:  flammableBlock(src.Block(pos.Side(cube.FaceEast))),
+		south: flammableBlock(src.Block(pos.Side(cube.FaceSouth))),
+		west:  flammableBlock(src.Block(pos.Side(cube.FaceWest))),
+	}
+	f.Up = flammableBlock(src.Block(pos.Side(cube.FaceUp)))
+	return f
 }
 
 // flammableBlock returns true if a block is flammable.
@@ -220,6 +244,7 @@ func (f Fire) RandomTick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 
 // NeighbourUpdateTick ...
 func (f Fire) NeighbourUpdateTick(pos, changedNeighbour cube.Pos, tx *world.Tx) {
+	previous := f
 	below := tx.Block(pos.Side(cube.FaceDown))
 	if diffuser, ok := below.(LightDiffuser); (ok && diffuser.LightDiffusionLevel() != 15) && (!neighboursFlammable(pos, tx) || f.Type == SoulFire()) {
 		tx.SetBlock(pos, nil, nil)
@@ -228,16 +253,24 @@ func (f Fire) NeighbourUpdateTick(pos, changedNeighbour cube.Pos, tx *world.Tx) 
 	switch below.(type) {
 	case SoulSand, SoulSoil:
 		f.Type = SoulFire()
-		tx.SetBlock(pos, f, nil)
 	case Water:
 		if changedNeighbour == pos {
 			tx.SetBlock(pos, nil, nil)
+			return
 		}
 	default:
 		if f.Type == SoulFire() {
 			tx.SetBlock(pos, nil, nil)
 			return
 		}
+	}
+	f = f.DeriveState(pos, tx).(Fire)
+	if f != previous {
+		var opts *world.SetOpts
+		if f.Type == previous.Type && f.Age == previous.Age {
+			opts = &world.SetOpts{DisableBlockUpdates: true, DisableRedstoneUpdates: true}
+		}
+		tx.SetBlock(pos, f, opts)
 	}
 }
 
@@ -260,7 +293,9 @@ func (f Fire) LightEmissionLevel() uint8 {
 func (f Fire) EncodeBlock() (name string, properties map[string]any) {
 	switch f.Type {
 	case NormalFire():
-		return "minecraft:fire", map[string]any{"age": int32(f.Age)}
+		properties := f.Connections.properties()
+		properties["age"], properties["minecraft:connection_up"] = int32(f.Age), f.Up
+		return "minecraft:fire", properties
 	case SoulFire():
 		return "minecraft:soul_fire", map[string]any{"age": int32(f.Age)}
 	}
@@ -290,7 +325,11 @@ func (f Fire) Start(tx *world.Tx, pos cube.Pos) {
 // allFire ...
 func allFire() (b []world.Block) {
 	for i := 0; i < 16; i++ {
-		b = append(b, Fire{Age: i, Type: NormalFire()})
+		for _, connections := range allConnections() {
+			for _, up := range []bool{false, true} {
+				b = append(b, Fire{Age: i, Type: NormalFire(), Connections: connections, Up: up})
+			}
+		}
 		b = append(b, Fire{Age: i, Type: SoulFire()})
 	}
 	return

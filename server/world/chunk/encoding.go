@@ -170,6 +170,11 @@ func (bpe BlockPaletteEncoding) DecodeBlockState(m map[string]any) (uint32, erro
 	if !ok {
 		return 0, fmt.Errorf("cannot get runtime ID of block state %v{%+v} %v", upgraded.Name, upgraded.Properties, upgraded.Version)
 	}
+	if bpe.legacy != nil && !*bpe.legacy {
+		if _, resolved, found := bpe.Blocks.RuntimeIDToState(v); found && len(resolved) > len(upgraded.Properties) {
+			*bpe.legacy = true
+		}
+	}
 	return v, nil
 }
 

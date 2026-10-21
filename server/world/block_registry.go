@@ -355,6 +355,17 @@ func (br *BasicBlockRegistry) Finalize() {
 		}
 		return fnv1.HashString64(nameOne) < fnv1.HashString64(nameTwo)
 	})
+	// ItemStack uses zero to mean "no block reference". Native clients now
+	// receive hashes, so these local indexes need not reproduce a vanilla
+	// palette. Reserve zero for air: a non-air local block at zero otherwise
+	// loses its reference when an inventory stack makes a network round trip.
+	for i, b := range br.blocks {
+		name, _ := b.EncodeBlock()
+		if name == "minecraft:air" {
+			br.blocks[0], br.blocks[i] = br.blocks[i], br.blocks[0]
+			break
+		}
+	}
 
 	br.blockInfos = make([]blockInfo, len(br.blocks))
 	br.hashes = intintmap.New(len(br.blocks), 0.999)
@@ -449,6 +460,16 @@ func (br *BasicBlockRegistry) StateToRuntimeID(name string, properties map[strin
 	}
 	if rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(properties)}]; ok {
 		return rid, true
+	}
+	// A native update can add derived properties without changing the stored
+	// block version. Fill only missing keys, preserving age, signal and other
+	// properties already present instead of falling back to the entire default.
+	if defaults := br.blockProperties[name]; len(properties) < len(defaults) {
+		completed := maps.Clone(defaults)
+		maps.Copy(completed, properties)
+		if rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(completed)}]; ok {
+			return rid, true
+		}
 	}
 	rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(br.blockProperties[name])}]
 	return rid, ok

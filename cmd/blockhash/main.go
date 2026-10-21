@@ -289,7 +289,7 @@ func (b *hashBuilder) ftype(structName, s string, expr ast.Expr, directives map[
 	case "CoralType", "SkullType", "StairsCorner":
 		return "uint64(" + s + ".Uint8())", 3
 	case "AnvilType", "SandstoneType", "PrismarineType", "StoneBricksType", "NetherBricksType", "FroglightType",
-		"WallConnectionType", "BlackstoneType", "DeepslateType", "TallGrassType", "CopperType", "OxidationType":
+		"WallConnectionType", "WireConnection", "BlackstoneType", "DeepslateType", "TallGrassType", "CopperType", "OxidationType":
 		return "uint64(" + s + ".Uint8())", 2
 	case "OreType", "FireType", "DoubleTallGrassType":
 		return "uint64(" + s + ".Uint8())", 1

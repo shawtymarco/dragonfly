@@ -24,3 +24,25 @@ func TestAddedDerivedPropertiesMarkExistingVersionForRepair(t *testing.T) {
 		t.Fatal("state upgrade mutated input properties")
 	}
 }
+
+type nativeDerivedTestRegistry struct{ mappingTestBlockRegistry }
+
+func (nativeDerivedTestRegistry) StateToRuntimeID(string, map[string]any) (uint32, bool) {
+	return 42, true
+}
+func (nativeDerivedTestRegistry) RuntimeIDToState(uint32) (string, map[string]any, bool) {
+	return "minecraft:fire", map[string]any{"age": int32(14), "minecraft:connection_up": false}, true
+}
+
+func TestRegistryAddedPropertiesMarkChunkForRepair(t *testing.T) {
+	legacy := false
+	_, err := (BlockPaletteEncoding{Blocks: nativeDerivedTestRegistry{}, legacy: &legacy}).DecodeBlockState(map[string]any{
+		"name": "minecraft:fire", "version": CurrentBlockVersion, "states": map[string]any{"age": int32(14)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !legacy {
+		t.Fatal("registry-defaulted connection was not scheduled for neighbour repair")
+	}
+}

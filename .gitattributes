@@ -1,1 +1,5 @@
 *.go eol=lf
+# Native provenance hashes must survive Windows checkouts and module archives.
+/server/item/recipe/item_tags.json text eol=lf
+/server/world/native_snapshot.json text eol=lf
+*.nbt -text

@@ -227,6 +227,19 @@ func (conf Config) New() *Server {
 		}
 		conf.AcceptedProtocols = append(conf.AcceptedProtocols, protocols...)
 	}
+	// The captured native palette has local indexes, so native clients use
+	// canonical hashes. Respect an explicitly supplied native adapter.
+	hasNative := false
+	for _, p := range conf.AcceptedProtocols {
+		hasNative = hasNative || p.ID() == minecraft.DefaultProtocol.ID()
+	}
+	if !hasNative {
+		p, err := NativeProtocol(conf.Blocks)
+		if err != nil {
+			panic(fmt.Sprintf("config: build native protocol: %v", err))
+		}
+		conf.AcceptedProtocols = append(conf.AcceptedProtocols, p)
+	}
 
 	if !conf.DisableResourceBuilding {
 		if pack, ok := packbuilder.BuildResourcePack(conf.Blocks); ok {

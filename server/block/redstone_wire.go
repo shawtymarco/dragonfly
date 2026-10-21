@@ -19,6 +19,73 @@ type RedstoneWire struct {
 
 	// Power is the current power level of the redstone wire. It ranges from 0 to 15.
 	Power int
+	// Native visual connections are derived independently of signal strength.
+	North, East, South, West WireConnection
+}
+
+// WireConnection is a native dust face: absent, level, or climbing a block.
+type WireConnection uint8
+
+const (
+	WireDisconnected WireConnection = iota
+	WireSide
+	WireUp
+)
+
+func (c WireConnection) Uint8() uint8 { return uint8(c) }
+func (c WireConnection) String() string {
+	switch c {
+	case WireSide:
+		return "side"
+	case WireUp:
+		return "up"
+	default:
+		return "none"
+	}
+}
+
+// DeriveState rebuilds only the wire's visual faces; propagation continues to
+// use the existing loaded-neighbour redstone graph.
+func (r RedstoneWire) DeriveState(pos cube.Pos, src world.BlockSource) world.Block {
+	faces := make(map[cube.Face]WireConnection, 4)
+	for _, face := range cube.HorizontalFaces() {
+		side := pos.Side(face)
+		b := src.Block(side)
+		if _, wire := src.Block(side.Side(cube.FaceUp)).(RedstoneWire); wire &&
+			!src.Block(pos.Side(cube.FaceUp)).Model().FaceSolid(pos.Side(cube.FaceUp), cube.FaceDown, src) && b.Model().FaceSolid(side, cube.FaceUp, src) {
+			faces[face] = WireUp
+			continue
+		}
+		connects := false
+		switch b.(type) {
+		case RedstoneWire, world.RedstonePowerSource, world.RedstoneStrongPowerSource, world.RedstonePowerRelayer:
+			connects = true
+		}
+		if !b.Model().FaceSolid(side, face.Opposite(), src) {
+			switch b.(type) {
+			case world.RedstonePowerConsumer, world.RedstonePowerAction, world.RedstonePowerContextAction:
+				connects = true
+			}
+		}
+		if _, wire := src.Block(side.Side(cube.FaceDown)).(RedstoneWire); wire && !b.Model().FaceSolid(side, cube.FaceUp, src) {
+			connects = true
+		}
+		if connects {
+			faces[face] = WireSide
+		}
+	}
+	if len(faces) == 0 {
+		for _, face := range cube.HorizontalFaces() {
+			faces[face] = WireSide
+		}
+	} else if len(faces) == 1 {
+		for face := range faces {
+			faces[face.Opposite()] = WireSide
+			break
+		}
+	}
+	r.North, r.East, r.South, r.West = faces[cube.FaceNorth], faces[cube.FaceEast], faces[cube.FaceSouth], faces[cube.FaceWest]
+	return r
 }
 
 func (r RedstoneWire) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world.Tx, user item.User, ctx *item.UseContext) bool {
@@ -86,6 +153,10 @@ func (r RedstoneWire) RedstonePowerUpdate(_ cube.Pos, _ *world.Tx, power int) (w
 func (r RedstoneWire) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 	if !redstoneWireSupported(tx, pos) {
 		breakBlock(r, pos, tx)
+		return
+	}
+	if derived := r.DeriveState(pos, tx).(RedstoneWire); derived != r {
+		tx.SetBlock(pos, derived, &world.SetOpts{DisableBlockUpdates: true, DisableRedstoneUpdates: true})
 	}
 }
 
@@ -102,7 +173,8 @@ func (RedstoneWire) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 }
 
 func (r RedstoneWire) EncodeBlock() (string, map[string]any) {
-	return "minecraft:redstone_wire", map[string]any{"redstone_signal": int32(world.ClampRedstonePower(r.Power))}
+	return "minecraft:redstone_wire", map[string]any{"redstone_signal": int32(world.ClampRedstonePower(r.Power)),
+		"redstone_north": r.North.String(), "redstone_east": r.East.String(), "redstone_south": r.South.String(), "redstone_west": r.West.String()}
 }
 
 func (RedstoneWire) EncodeItem() (name string, meta int16) {
@@ -121,7 +193,15 @@ func (RedstoneWire) MaterialColour() string {
 
 func allRedstoneWires() (all []world.Block) {
 	for i := range 16 {
-		all = append(all, RedstoneWire{Power: i})
+		for n := WireDisconnected; n <= WireUp; n++ {
+			for e := WireDisconnected; e <= WireUp; e++ {
+				for s := WireDisconnected; s <= WireUp; s++ {
+					for w := WireDisconnected; w <= WireUp; w++ {
+						all = append(all, RedstoneWire{Power: i, North: n, East: e, South: s, West: w})
+					}
+				}
+			}
+		}
 	}
 	return
 }

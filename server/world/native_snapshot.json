@@ -1,0 +1,73 @@
+{
+  "block_network_ids": "hashes; source file indexes are local only",
+  "files": [
+    {
+      "Source": "block_states.nbt",
+      "Destination": "server/world/block_states.nbt",
+      "SourceSHA256": "10cb917063440faef680a8bb84b5d0842a699508a0ff4afd2e0d52f1bc60c9a6",
+      "SHA256": "10cb917063440faef680a8bb84b5d0842a699508a0ff4afd2e0d52f1bc60c9a6",
+      "Bytes": 3413601
+    },
+    {
+      "Source": "crafting_data.nbt",
+      "Destination": "server/item/recipe/crafting_data.nbt",
+      "SourceSHA256": "857e8daa181a94c77ab7508a7cd1e1417f559c945ef0bb46de30ed7b4ec65fc9",
+      "SHA256": "857e8daa181a94c77ab7508a7cd1e1417f559c945ef0bb46de30ed7b4ec65fc9",
+      "Bytes": 1376737
+    },
+    {
+      "Source": "creative_items.nbt",
+      "Destination": "server/item/creative/creative_items.nbt",
+      "SourceSHA256": "5a62c4b9895376a479e9eee6474c19022d730be4652dd117ba1d0c091f013124",
+      "SHA256": "5a62c4b9895376a479e9eee6474c19022d730be4652dd117ba1d0c091f013124",
+      "Bytes": 168431
+    },
+    {
+      "Source": "data_driven_blocks.nbt",
+      "Destination": "server/world/data_driven_blocks.nbt",
+      "SourceSHA256": "ea51c99ad3d7a30f7edf87b4a6cf658a884b371c5608028e2c0abe00a0df3000",
+      "SHA256": "3ffd97c287f1a26438dec8316cbe83c1ab20e87f4ca4499dc58c9fc6fe24ee25",
+      "Bytes": 80180
+    },
+    {
+      "Source": "item_tags.json",
+      "Destination": "server/item/recipe/item_tags.json",
+      "SourceSHA256": "fa0db843b0cf8d269abc20f933400b835352581718d91a74cb3a3b374ae01eb9",
+      "SHA256": "fa0db843b0cf8d269abc20f933400b835352581718d91a74cb3a3b374ae01eb9",
+      "Bytes": 42839
+    },
+    {
+      "Source": "potion_data.nbt",
+      "Destination": "server/item/recipe/potion_data.nbt",
+      "SourceSHA256": "aaf4d3862f6e6b82acad1953bdb20f8ffe4024302b1bd846c86f5dc5a5fa3313",
+      "SHA256": "aaf4d3862f6e6b82acad1953bdb20f8ffe4024302b1bd846c86f5dc5a5fa3313",
+      "Bytes": 34125
+    },
+    {
+      "Source": "smithing_data.nbt",
+      "Destination": "server/item/recipe/smithing_data.nbt",
+      "SourceSHA256": "8d260ab75a76d013e43f9a10fdf747ffd83d06f6b428e50dac6ad77a3af340d8",
+      "SHA256": "8d260ab75a76d013e43f9a10fdf747ffd83d06f6b428e50dac6ad77a3af340d8",
+      "Bytes": 3290
+    },
+    {
+      "Source": "smithing_trim_data.nbt",
+      "Destination": "server/item/recipe/smithing_trim_data.nbt",
+      "SourceSHA256": "a3dd7e74e1340745455156d0820a118bf29dbc58bc548e9cba0735ef290866e8",
+      "SHA256": "a3dd7e74e1340745455156d0820a118bf29dbc58bc548e9cba0735ef290866e8",
+      "Bytes": 218
+    },
+    {
+      "Source": "vanilla_items.nbt",
+      "Destination": "server/world/vanilla_items.nbt",
+      "SourceSHA256": "a41c2c102e92a445421830448f4291297bfdd7b137d113cce281ac1845d1205e",
+      "SHA256": "a41c2c102e92a445421830448f4291297bfdd7b137d113cce281ac1845d1205e",
+      "Bytes": 204961
+    }
+  ],
+  "protocol": 2225,
+  "source_data_commit": "07388dcd962bb24eb7de996b0db26844e4404e38",
+  "source_directory": "data/native2225",
+  "source_repository": "https://github.com/shawtymarco/go-multiversion",
+  "version": "1.26.60.30"
+}
