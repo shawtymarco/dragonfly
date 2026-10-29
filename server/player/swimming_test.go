@@ -177,12 +177,6 @@ func TestSwimmingInputsCorrectTheControllingClient(t *testing.T) {
 			}
 		}
 		drainSwimmingPackets(t, s, conn)
-		legacy := &session.PlayerActionHandler{}
-		start := &packet.PlayerAction{EntityRuntimeID: 1, ActionType: protocol.PlayerActionStartSwimming}
-		if err := legacy.Handle(start, s, tx, p); err != nil {
-			t.Fatal(err)
-		}
-		assertPose(false)
 		modern := func(flag int) {
 			t.Helper()
 			flags := protocol.NewInputFlags(packet.InputFlagCount)
@@ -201,9 +195,7 @@ func TestSwimmingInputsCorrectTheControllingClient(t *testing.T) {
 		p.SetSwimmingEnabled(false)
 		assertPose(false)
 		p.SetSwimmingEnabled(true)
-		if err := legacy.Handle(start, s, tx, p); err != nil {
-			t.Fatal(err)
-		}
+		modern(packet.InputFlagStartSwimming)
 		assertPose(true)
 		modern(packet.InputFlagStopSwimming)
 		assertPose(false)

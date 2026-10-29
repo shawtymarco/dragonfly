@@ -1172,12 +1172,6 @@ func (w *World) Handle(h Handler) {
 	w.handler.Store(&h)
 }
 
-// FireTicksDisabled reports whether fire ticking, spreading, and block burning
-// are disabled for this World.
-func (w *World) FireTicksDisabled() bool {
-	return w == nil || w.conf.DisableFireTick
-}
-
 // HopperTicksDisabled reports whether hopper transfer and collect ticks are
 // disabled for this World.
 func (w *World) HopperTicksDisabled() bool {

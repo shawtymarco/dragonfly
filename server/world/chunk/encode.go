@@ -46,13 +46,6 @@ type (
 // network or disk purposed, the most notable difference being that the network encoding generally uses varints and no
 // NBT.
 func Encode(c *Chunk, e Encoding) SerialisedData {
-	if provider, ok := e.(interface {
-		networkChunkFormat() (NetworkChunkFormatController, bool)
-	}); ok {
-		if format, configured := provider.networkChunkFormat(); configured {
-			return encodeConfiguredNetworkChunk(c, e, format)
-		}
-	}
 	d := SerialisedData{SubChunks: make([][]byte, len(c.sub))}
 	for i := range c.sub {
 		d.SubChunks[i] = EncodeSubChunk(c, e, i)
@@ -64,10 +57,6 @@ func Encode(c *Chunk, e Encoding) SerialisedData {
 // EncodeSubChunk encodes a sub-chunk from a chunk into bytes. An Encoding may be passed to encode either for network or
 // disk purposed, the most notable difference being that the network encoding generally uses varints and no NBT.
 func EncodeSubChunk(c *Chunk, e Encoding, ind int) []byte {
-	return encodeSubChunk(c, e, ind, SubChunkVersion, true)
-}
-
-func encodeSubChunk(c *Chunk, e Encoding, ind int, version byte, includeIndex bool) []byte {
 	buf := pool.Get().(*bytes.Buffer)
 	defer func() {
 		buf.Reset()
@@ -75,74 +64,13 @@ func encodeSubChunk(c *Chunk, e Encoding, ind int, version byte, includeIndex bo
 	}()
 
 	s := c.sub[ind]
-	_, _ = buf.Write([]byte{version, byte(len(s.storages))})
-	if includeIndex {
-		_ = buf.WriteByte(uint8(ind + (c.r[0] >> 4)))
-	}
+	_, _ = buf.Write([]byte{SubChunkVersion, byte(len(s.storages)), uint8(ind + (c.r[0] >> 4))})
 	for _, storage := range s.storages {
 		encodePalettedStorage(buf, storage, nil, e, BlockPaletteEncoding{Blocks: c.br})
 	}
 	sub := make([]byte, buf.Len())
 	_, _ = buf.Read(sub)
 	return sub
-}
-
-func encodeConfiguredNetworkChunk(c *Chunk, e Encoding, format NetworkChunkFormatController) SerialisedData {
-	minY, maxY := format.NetworkChunkRange()
-	if minY > maxY || minY&15 != 0 || maxY&15 != 15 {
-		panic("chunk: network chunk range must be 16-block aligned")
-	}
-	start := int((minY - int16(c.r[0])) >> 4)
-	end := int((maxY - int16(c.r[0])) >> 4)
-	if start < 0 || end >= len(c.sub) {
-		panic("chunk: network chunk range falls outside the live chunk")
-	}
-	highest := -1
-	for index := end; index >= start; index-- {
-		if !c.sub[index].Empty() {
-			highest = index
-			break
-		}
-	}
-	data := SerialisedData{}
-	if highest >= start {
-		data.SubChunks = make([][]byte, highest-start+1)
-		version := format.NetworkSubChunkVersion()
-		for index := start; index <= highest; index++ {
-			if c.sub[index].Empty() {
-				data.SubChunks[index-start] = []byte{version, 0}
-				continue
-			}
-			data.SubChunks[index-start] = encodeSubChunk(c, e, index, version, version >= 9)
-		}
-	}
-	if format.NetworkBiomes2D() {
-		data.Biomes = encodeBiomes2D(c, e, minY, maxY)
-	} else {
-		data.Biomes = EncodeBiomes(c, e)
-	}
-	return data
-}
-
-func encodeBiomes2D(c *Chunk, e Encoding, minY, maxY int16) []byte {
-	biomes := make([]byte, 256)
-	for x := uint8(0); x < 16; x++ {
-		for z := uint8(0); z < 16; z++ {
-			y := minY
-			for candidate := maxY; candidate >= minY; candidate-- {
-				if c.Block(x, candidate, z, 0) != c.air {
-					y = candidate
-					break
-				}
-			}
-			id := c.Biome(x, y, z)
-			if mapper, ok := e.(interface{ mapBiomeRuntimeID(uint32) uint32 }); ok {
-				id = mapper.mapBiomeRuntimeID(id)
-			}
-			biomes[int(z)<<4|int(x)] = byte(id)
-		}
-	}
-	return biomes
 }
 
 // EncodeBiomes encodes the biomes of a chunk into bytes. An Encoding may be passed to encode either for network or
@@ -155,16 +83,8 @@ func EncodeBiomes(c *Chunk, e Encoding) []byte {
 	}()
 
 	var previous *PalettedStorage
-	reuse := true
-	if controller, ok := e.(interface{ canReuseBiomePalettes() bool }); ok {
-		reuse = controller.canReuseBiomePalettes()
-	}
 	for _, b := range c.biomes {
-		var reusable *PalettedStorage
-		if reuse {
-			reusable = previous
-		}
-		encodePalettedStorage(buf, b, reusable, e, BiomePaletteEncoding)
+		encodePalettedStorage(buf, b, previous, e, BiomePaletteEncoding)
 		previous = b
 	}
 	biomes := make([]byte, buf.Len())
@@ -175,11 +95,6 @@ func EncodeBiomes(c *Chunk, e Encoding) []byte {
 // encodePalettedStorage encodes a PalettedStorage into a bytes.Buffer. The Encoding passed is used to write the Palette
 // of the PalettedStorage.
 func encodePalettedStorage(buf *bytes.Buffer, storage, previous *PalettedStorage, e Encoding, pe paletteEncoding) {
-	if mapper, ok := e.(interface {
-		mapStorage(*PalettedStorage, paletteEncoding) *PalettedStorage
-	}); ok {
-		storage = mapper.mapStorage(storage, pe)
-	}
 	if storage.Equal(previous) {
 		_, _ = buf.Write([]byte{0x7f<<1 | e.network()})
 		return

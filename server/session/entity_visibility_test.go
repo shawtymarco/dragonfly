@@ -11,7 +11,6 @@ import (
 	"github.com/df-mc/dragonfly/server/item/inventory"
 	"github.com/df-mc/dragonfly/server/player/skin"
 	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -82,7 +81,7 @@ func visibilitySession(tx *world.Tx, t *testing.T) (*Session, *visibilityActor) 
 		entities:         map[uint64]*world.EntityHandle{selfEntityRuntimeID: observer.H()},
 		hiddenEntities:   map[uuid.UUID]struct{}{}, packets: make(chan outboundMessage, 4096),
 		blobs: map[uint64][]byte{}, chunkTransactions: map[world.ChunkPos]map[uint64]struct{}{},
-		closeBackground: make(chan struct{}), chunkRadius: 2, chunkEncoding: chunk.NetworkEncoding,
+		closeBackground: make(chan struct{}), chunkRadius: 2,
 	}
 	s.chunkLoader = world.NewLoader(2, tx.World(), s)
 	s.chunkLoader.Move(tx, observer.Position())

@@ -91,13 +91,6 @@ type Config struct {
 	// Compression is the packet compression used for connections accepted by
 	// the default listener. If nil, gophertunnel's default compression is used.
 	Compression packet.Compression
-	// AcceptedProtocols contains additional Minecraft protocol versions accepted
-	// by the default listener. The current native protocol is always accepted.
-	AcceptedProtocols []minecraft.Protocol
-	// AcceptedProtocolsProvider may construct additional protocols after Blocks
-	// has been finalised. This is intended for adapters that need an immutable
-	// snapshot of the live block registry before the listener is created.
-	AcceptedProtocolsProvider func(blocks world.BlockRegistry) ([]minecraft.Protocol, error)
 	// PlayerProvider is the player.Provider used for storing and loading player
 	// data. If left as nil, player data will be newly created every time a
 	// player joins the server and no data will be stored.
@@ -151,9 +144,6 @@ type Config struct {
 	// DisableEnd, if true, does not create the end world. End portals stay in
 	// the current world.
 	DisableEnd bool
-	// DisableFireTick, if true, stops fire from ticking, spreading, or burning
-	// blocks. Existing fire stays until extinguished.
-	DisableFireTick bool
 	// DisableHopperTick, if true, stops hoppers from transferring or collecting
 	// items. Existing hoppers stay in the world.
 	DisableHopperTick bool
@@ -220,26 +210,6 @@ func (conf Config) New() *Server {
 	// is used in some vanilla paths.
 	conf.Blocks.Finalize()
 	world.DefaultBlockRegistry.Finalize()
-	if conf.AcceptedProtocolsProvider != nil {
-		protocols, err := conf.AcceptedProtocolsProvider(conf.Blocks)
-		if err != nil {
-			panic(fmt.Sprintf("config: build accepted protocols: %v", err))
-		}
-		conf.AcceptedProtocols = append(conf.AcceptedProtocols, protocols...)
-	}
-	// Native connections must use network hashes, independent of local palette
-	// ordering and custom blocks. An explicit native adapter takes precedence.
-	hasNative := false
-	for _, p := range conf.AcceptedProtocols {
-		hasNative = hasNative || p.ID() == minecraft.DefaultProtocol.ID()
-	}
-	if !hasNative {
-		p, err := NativeProtocol(conf.Blocks)
-		if err != nil {
-			panic(fmt.Sprintf("config: build native protocol: %v", err))
-		}
-		conf.AcceptedProtocols = append(conf.AcceptedProtocols, p)
-	}
 
 	if !conf.DisableResourceBuilding {
 		if pack, ok := packbuilder.BuildResourcePack(conf.Blocks); ok {
@@ -248,7 +218,6 @@ func (conf Config) New() *Server {
 	}
 	// Copy resources so that the slice can't be edited afterward.
 	conf.Resources = slices.Clone(conf.Resources)
-	conf.AcceptedProtocols = slices.Clone(conf.AcceptedProtocols)
 
 	if conf.OperatorsFile == "" {
 		conf.OperatorsFile = "ops.txt"
@@ -357,8 +326,6 @@ type UserConfig struct {
 		// DisableEnd skips creating the end dimension. Portals do not transfer
 		// players there.
 		DisableEnd bool
-		// DisableFireTick stops fire ticking, spreading, and burning blocks.
-		DisableFireTick bool
 		// DisableHopperTick stops hoppers transferring or collecting items.
 		DisableHopperTick bool
 		// DisableRedstoneTick prevents redstone invalidation, power queries,
@@ -427,7 +394,6 @@ func (uc UserConfig) Config(log *slog.Logger) (Config, error) {
 		DisableResourceBuilding: !uc.Resources.AutoBuildPack,
 		DisableNether:           uc.World.DisableNether,
 		DisableEnd:              uc.World.DisableEnd,
-		DisableFireTick:         uc.World.DisableFireTick,
 		DisableHopperTick:       uc.World.DisableHopperTick,
 		DisableRedstoneTick:     uc.World.DisableRedstoneTick,
 		DisableBlockTicks:       uc.World.DisableBlockTicks,

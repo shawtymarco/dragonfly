@@ -37,49 +37,6 @@ var (
 	BiomePaletteEncoding biomePaletteEncoding
 )
 
-// BlockRuntimeIDMapper maps live native block runtime IDs to a connection's
-// network registry. Implementations must be safe for concurrent use.
-type BlockRuntimeIDMapper interface {
-	MapBlockRuntimeID(runtimeID uint32) (mapped uint32, ok bool)
-}
-
-// BiomePaletteReuseController controls whether equal consecutive biome
-// palettes may use the network reuse marker. Older clients predate this
-// marker and interpret it as an invalid palette header.
-type BiomePaletteReuseController interface {
-	ReuseBiomePalettes() bool
-}
-
-// NetworkChunkFormatController describes a connection's historical chunk payload shape. Implementations must return
-// a 16-block-aligned inclusive range and a valid sub-chunk version. Native connections do not implement this interface.
-type NetworkChunkFormatController interface {
-	NetworkChunkRange() (minY, maxY int16)
-	NetworkSubChunkVersion() byte
-	NetworkBiomes2D() bool
-}
-
-// BiomeRuntimeIDMapper optionally maps biome IDs before palette packing and hashing.
-type BiomeRuntimeIDMapper interface {
-	MapBiomeRuntimeID(uint32) (uint32, bool)
-}
-
-// NetworkEncodingWithBlockMapper returns a network encoding that maps block
-// palettes and, when supplied by the mapper, biome palettes before packing them.
-func NetworkEncodingWithBlockMapper(mapper BlockRuntimeIDMapper) Encoding {
-	if mapper == nil {
-		return NetworkEncoding
-	}
-	reuseBiomePalettes := true
-	if controller, ok := mapper.(BiomePaletteReuseController); ok {
-		reuseBiomePalettes = controller.ReuseBiomePalettes()
-	}
-	encoding := mappedNetworkEncoding{mapper: mapper, reuseBiomePalettes: reuseBiomePalettes}
-	if controller, ok := mapper.(NetworkChunkFormatController); ok {
-		encoding.format = controller
-	}
-	return encoding
-}
-
 // biomePaletteEncoding implements the encoding of biome palettes to disk.
 type biomePaletteEncoding struct{}
 
@@ -287,53 +244,4 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 		blocks[i] = uint32(temp)
 	}
 	return &Palette{values: blocks, size: blockSize}, nil
-}
-
-type mappedNetworkEncoding struct {
-	mapper             BlockRuntimeIDMapper
-	reuseBiomePalettes bool
-	format             NetworkChunkFormatController
-}
-
-func (mappedNetworkEncoding) network() byte { return 1 }
-func (mappedNetworkEncoding) encodePalette(buf *bytes.Buffer, palette *Palette, encoding paletteEncoding) {
-	NetworkEncoding.encodePalette(buf, palette, encoding)
-}
-func (mappedNetworkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, encoding paletteEncoding) (*Palette, error) {
-	return NetworkEncoding.decodePalette(buf, blockSize, encoding)
-}
-
-func (encoding mappedNetworkEncoding) mapStorage(storage *PalettedStorage, paletteEncoding paletteEncoding) *PalettedStorage {
-	if _, blockPalette := paletteEncoding.(BlockPaletteEncoding); !blockPalette {
-		if mapper, ok := encoding.mapper.(BiomeRuntimeIDMapper); ok {
-			return remapPalettedStorage(storage, biomeBlockMapper{mapper})
-		}
-		return storage
-	}
-	return remapPalettedStorage(storage, encoding.mapper)
-}
-
-type biomeBlockMapper struct{ BiomeRuntimeIDMapper }
-
-func (m biomeBlockMapper) MapBlockRuntimeID(id uint32) (uint32, bool) {
-	return m.MapBiomeRuntimeID(id)
-}
-
-func (encoding mappedNetworkEncoding) mapBiomeRuntimeID(id uint32) uint32 {
-	if mapper, ok := encoding.mapper.(BiomeRuntimeIDMapper); ok {
-		mapped, valid := mapper.MapBiomeRuntimeID(id)
-		if valid {
-			return mapped
-		}
-		return 0
-	}
-	return id
-}
-
-func (encoding mappedNetworkEncoding) canReuseBiomePalettes() bool {
-	return encoding.reuseBiomePalettes
-}
-
-func (encoding mappedNetworkEncoding) networkChunkFormat() (NetworkChunkFormatController, bool) {
-	return encoding.format, encoding.format != nil
 }

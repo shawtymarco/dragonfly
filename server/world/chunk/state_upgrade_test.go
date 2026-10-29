@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-type derivedStateTestRegistry struct{ mappingTestBlockRegistry }
+type derivedStateTestRegistry struct{ testBlockRegistry }
 
 func (derivedStateTestRegistry) StateToRuntimeID(name string, props map[string]any) (uint32, bool) {
 	return 42, name == "minecraft:oak_stairs" && props["minecraft:corner"] == "none"
 }
 
 type missingPropertyTestRegistry struct {
-	mappingTestBlockRegistry
+	testBlockRegistry
 	defaults map[string]any
 }
 

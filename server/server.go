@@ -563,7 +563,6 @@ func (srv *Server) defaultGameData() minecraft.GameData {
 		CustomBlocks: srv.customBlocks,
 		GameRules: []protocol.GameRule{
 			{Name: "naturalregeneration", Value: false},
-			{Name: "dofiretick", Value: !srv.conf.DisableFireTick},
 			{Name: "locatorBar", Value: false},
 		},
 
@@ -664,7 +663,6 @@ func (srv *Server) createWorld(dim world.Dimension, nether, end **world.World) *
 		ChunkLoadWorkers:    srv.conf.ChunkLoadWorkers,
 		Entities:            srv.conf.Entities,
 		Blocks:              srv.conf.Blocks,
-		DisableFireTick:     srv.conf.DisableFireTick,
 		DisableHopperTick:   srv.conf.DisableHopperTick,
 		DisableRedstoneTick: srv.conf.DisableRedstoneTick,
 		DisableBlockTicks:   srv.conf.DisableBlockTicks,

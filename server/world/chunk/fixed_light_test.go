@@ -7,7 +7,7 @@ import (
 )
 
 func TestFillLightUsesUniformCopyOnWriteArrays(t *testing.T) {
-	c := New(mappingTestBlockRegistry{}, cube.Range{-64, 319})
+	c := New(testBlockRegistry{}, cube.Range{-64, 319})
 	FillLight(c, 15)
 	for _, y := range []int16{-64, 0, 64, 319} {
 		if sky, block := c.SkyLight(3, y, 7), c.SubChunk(y).BlockLight(3, uint8(y&15), 7); sky != 15 || block != 15 {
@@ -26,7 +26,7 @@ func TestFillLightUsesUniformCopyOnWriteArrays(t *testing.T) {
 }
 
 func TestFillLightRejectsInvalidLevel(t *testing.T) {
-	c := New(mappingTestBlockRegistry{}, cube.Range{-64, 319})
+	c := New(testBlockRegistry{}, cube.Range{-64, 319})
 	defer func() {
 		if recover() == nil {
 			t.Fatal("FillLight accepted a level above 15")
@@ -36,7 +36,7 @@ func TestFillLightRejectsInvalidLevel(t *testing.T) {
 }
 
 func BenchmarkLightInitialization(b *testing.B) {
-	template := New(mappingTestBlockRegistry{}, cube.Range{-64, 319})
+	template := New(testBlockRegistry{}, cube.Range{-64, 319})
 	for x := byte(0); x < 16; x++ {
 		for z := byte(0); z < 16; z++ {
 			template.SetBlock(x, 64, z, 0, 1)

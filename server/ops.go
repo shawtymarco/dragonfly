@@ -125,7 +125,13 @@ func (srv *Server) ReloadOperators() error {
 	if err := srv.ops.reload(); err != nil {
 		return err
 	}
-	for _, name := range srv.PlayerNames() {
+	srv.pmu.RLock()
+	names := make([]string, 0, len(srv.p))
+	for _, p := range srv.p {
+		names = append(names, p.name)
+	}
+	srv.pmu.RUnlock()
+	for _, name := range names {
 		srv.applyOperator(name, srv.IsOp(name))
 	}
 	return nil

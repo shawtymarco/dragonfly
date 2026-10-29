@@ -24,7 +24,7 @@ func TestLegacyBlockMetaRejectsOverflow(t *testing.T) {
 	}
 }
 
-type legacyMetaTestRegistry struct{ mappingTestBlockRegistry }
+type legacyMetaTestRegistry struct{ testBlockRegistry }
 
 func (legacyMetaTestRegistry) StateToRuntimeID(name string, properties map[string]any) (uint32, bool) {
 	if name == "minecraft:yellow_concrete" && len(properties) == 0 {

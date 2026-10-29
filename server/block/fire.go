@@ -86,9 +86,6 @@ func rainingAround(pos cube.Pos, tx *world.Tx) bool {
 
 // tick ...
 func (f Fire) tick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
-	if tx.World().FireTicksDisabled() {
-		return
-	}
 	if f.Type == SoulFire() {
 		return
 	}
