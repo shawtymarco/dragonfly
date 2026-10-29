@@ -236,12 +236,9 @@ func (srv *Server) SavePlayerData(id uuid.UUID, data player.Config, w *world.Wor
 
 // Players returns an iterator that yields players currently online. If Players
 // is called from within a transaction, the respective transaction should be
-// passed. Passing nil from a world owner (commands, handlers, Do callbacks)
-// deadlocks: each missing player is resolved with player.Call, which waits on
-// that same owner. Use PlayerNames or PlayerByNameFold when you only need
-// names or handles. Each loop body runs on the yielded player's world owner,
-// so blocking stalls that world and calling world.Call, world.CallEntity,
-// world.CallRef, or Task.Wait for the same owner deadlocks.
+// passed. Passing nil is otherwise valid. Each loop body runs on the yielded
+// player's world owner, so blocking stalls that world and calling world.Call,
+// world.CallEntity, world.CallRef, or Task.Wait for the same owner deadlocks.
 // Players in other worlds are yielded by blocking on those owners sequentially;
 // mirrored handlers in two worlds can therefore deadlock each other. For
 // fan-out, collect Player.H values and schedule each with player.Do instead.
@@ -304,18 +301,6 @@ func (srv *Server) Player(uuid uuid.UUID) (*world.EntityHandle, bool) {
 	return p.handle, ok
 }
 
-// PlayerNames returns the names of players currently online without entering
-// any world. Safe to call from a world owner.
-func (srv *Server) PlayerNames() []string {
-	srv.pmu.RLock()
-	defer srv.pmu.RUnlock()
-	names := make([]string, 0, len(srv.p))
-	for _, p := range srv.p {
-		names = append(names, p.name)
-	}
-	return names
-}
-
 // PlayerByName looks for a player on the server with the name passed. If
 // found, the entity handle is returned and the bool returned holds a true
 // value. If not, the bool is false and the handle is nil
@@ -326,12 +311,6 @@ func (srv *Server) PlayerByName(name string) (*world.EntityHandle, bool) {
 		return p.handle, true
 	}
 	return nil, false
-}
-
-// PlayerByNameFold is PlayerByName with case-insensitive matching. It only
-// reads the online-player map, so it is safe from a world owner.
-func (srv *Server) PlayerByNameFold(name string) (*world.EntityHandle, bool) {
-	return srv.playerHandleFold(name)
 }
 
 // PlayerByXUID looks for a player on the server with the XUID passed. If
