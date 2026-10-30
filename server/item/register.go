@@ -145,6 +145,9 @@ func init() {
 		world.RegisterItem(Dye{Colour: c})
 		world.RegisterItem(FireworkStar{FireworkExplosion: FireworkExplosion{Colour: c}})
 	}
+	for i := 0; i < 5; i++ {
+		world.RegisterItem(OminousBottle{Amplifier: i})
+	}
 	for _, horn := range sound.GoatHorns() {
 		world.RegisterItem(GoatHorn{Type: horn})
 	}
