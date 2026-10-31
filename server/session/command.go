@@ -277,9 +277,10 @@ func (s *Session) enums(co Controllable) (map[string]cmd.Enum, map[string][]stri
 	return enums, enumValues
 }
 
-// resendEnums checks the options of the enums passed against the values that were previously recorded. If they do not
-// match, and the enum is in softEnums, the enum is resent via UpdateSoftEnum. If the enum is not yet in softEnums,
-// it is added and the full AvailableCommands packet is resent.
+// resendEnums checks the options of the enums passed against the values that were previously recorded. If any do not
+// match, the full AvailableCommands packet is resent. Enums are never promoted to soft enums: the client stops showing
+// the usage of a command once a parameter is a soft enum, so a list of online players would hide it a second after
+// joining.
 func (s *Session) resendEnums(
 	enums map[string]cmd.Enum,
 	before map[string][]string,
@@ -287,6 +288,7 @@ func (s *Session) resendEnums(
 	r map[string]map[int]cmd.Runnable,
 	c Controllable,
 ) map[string]map[int]cmd.Runnable {
+	resend := false
 	for name, enum := range enums {
 		valuesBefore := before[name]
 		values := enum.Options(c)
@@ -303,16 +305,10 @@ func (s *Session) resendEnums(
 				}
 			}
 		}
-		if !changed {
-			continue
-		}
-
-		if _, dynamic := softEnums[name]; dynamic {
-			s.writePacket(&packet.UpdateSoftEnum{EnumType: name, Options: values, ActionType: packet.SoftEnumActionSet})
-		} else {
-			softEnums[name] = struct{}{}
-			r = s.sendAvailableCommands(c, softEnums)
-		}
+		resend = resend || changed
+	}
+	if resend {
+		r = s.sendAvailableCommands(c, softEnums)
 	}
 	return r
 }
