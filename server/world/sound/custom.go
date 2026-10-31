@@ -9,6 +9,8 @@ type Custom struct {
 	Volume float64
 	// Pitch is the pitch of the sound.
 	Pitch float64
+	// Always plays the sound for players who muted custom sounds.
+	Always bool
 
 	sound
 }

@@ -85,6 +85,7 @@ type Session struct {
 	breakingPos cube.Pos
 
 	inTransaction, containerOpened atomic.Bool
+	customSoundsMuted              atomic.Bool
 	openedVirtual                  atomic.Bool
 	openedWindowID                 atomic.Uint32
 	openedContainerID              atomic.Uint32

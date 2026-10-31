@@ -1062,6 +1062,9 @@ func (s *Session) playSound(pos mgl64.Vec3, t world.Sound, disableRelative bool)
 	case sound.DecoratedPotInsertFailed:
 		pk.SoundType = packet.SoundEventDecoratedPotInsertFail
 	case sound.Custom:
+		if s.customSoundsMuted.Load() && !so.Always {
+			return
+		}
 		s.writePacket(&packet.PlaySound{
 			SoundName: so.Name,
 			Position:  vec64To32(pos),
@@ -1097,6 +1100,11 @@ func (s *Session) PlaySound(t world.Sound, pos mgl64.Vec3) {
 }
 
 // ViewSound ...
+// MuteCustomSounds sets whether sound.Custom sounds reach the client.
+func (s *Session) MuteCustomSounds(muted bool) {
+	s.customSoundsMuted.Store(muted)
+}
+
 func (s *Session) ViewSound(pos mgl64.Vec3, soundType world.Sound) {
 	s.playSound(pos, soundType, false)
 }

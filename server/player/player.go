@@ -2837,6 +2837,12 @@ func (p *Player) PickupPriority() int {
 	return p.pickupPriority
 }
 
+// SetCustomSoundsMuted sets whether the player hears sound.Custom sounds that
+// are not marked Always.
+func (p *Player) SetCustomSoundsMuted(muted bool) {
+	p.session().MuteCustomSounds(muted)
+}
+
 // SetPickupPriority sets the player's item pickup priority. It must be called
 // on the player's world owner.
 func (p *Player) SetPickupPriority(priority int) {
