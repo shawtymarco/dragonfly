@@ -23,6 +23,7 @@ type ItemStackRequestHandler struct {
 	responseChanges map[int32]map[*inventory.Inventory]map[byte]responseChange
 
 	pendingResults []item.Stack
+	trade          *tradeCost
 
 	current       time.Time
 	ignoreDestroy bool
@@ -64,6 +65,10 @@ func (h *ItemStackRequestHandler) Handle(p packet.Packet, s *Session, tx *world.
 func (h *ItemStackRequestHandler) handleRequest(req protocol.ItemStackRequest, s *Session, tx *world.Tx, c Controllable) (err error) {
 	h.currentRequest = req.RequestID
 	defer func() {
+		if err == nil && h.trade != nil && !h.trade.paid() {
+			err = fmt.Errorf("trade was not paid for in full")
+		}
+		h.trade = nil
 		if err != nil {
 			h.reject(req.RequestID, s, tx)
 			return
@@ -87,6 +92,10 @@ func (h *ItemStackRequestHandler) handleRequest(req protocol.ItemStackRequest, s
 		case *protocol.BeaconPaymentStackRequestAction:
 			err = h.handleBeaconPayment(a, s, tx)
 		case *protocol.CraftRecipeStackRequestAction:
+			if t := s.openedTrade.Load(); t != nil {
+				err = h.handleTrade(t, a.RecipeNetworkID, a.NumberOfCrafts, s, tx)
+				break
+			}
 			if s.containerOpened.Load() {
 				var special bool
 				switch tx.Block(*s.openedPos.Load()).(type) {
@@ -104,6 +113,10 @@ func (h *ItemStackRequestHandler) handleRequest(req protocol.ItemStackRequest, s
 			}
 			err = h.handleCraft(a, s, tx)
 		case *protocol.AutoCraftRecipeStackRequestAction:
+			if t := s.openedTrade.Load(); t != nil {
+				err = h.handleTrade(t, a.RecipeNetworkID, a.NumberOfCrafts, s, tx)
+				break
+			}
 			err = h.handleAutoCraft(a, s, tx)
 		case *protocol.CraftRecipeOptionalStackRequestAction:
 			err = h.handleCraftRecipeOptional(a, s, req.FilterStrings, c, tx)
@@ -117,7 +130,11 @@ func (h *ItemStackRequestHandler) handleRequest(req protocol.ItemStackRequest, s
 			err = h.handleMineBlock(a, s, tx)
 		case *protocol.CreateStackRequestAction:
 			err = h.handleCreate(a, s, tx)
-		case *protocol.ConsumeStackRequestAction, *protocol.CraftResultsDeprecatedStackRequestAction:
+		case *protocol.ConsumeStackRequestAction:
+			if h.trade != nil {
+				err = h.handleTradeConsume(a, s, tx)
+			}
+		case *protocol.CraftResultsDeprecatedStackRequestAction:
 			// Don't do anything with this.
 		case *protocol.CraftReservedStackRequestAction:
 			// The client sends this action for a crafting mechanic that has

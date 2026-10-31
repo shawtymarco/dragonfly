@@ -1602,6 +1602,9 @@ func (s *Session) closeWindow(clientRequested bool) bool {
 		s.openedWindow.Load().SlotFunc(nil)
 	}
 
+	if t := s.openedTrade.Swap(nil); t != nil {
+		s.writeTradeTarget(t.holder, -1)
+	}
 	s.openedContainerID.Store(0)
 	s.openedWindow.Store(inventory.New(1, nil))
 	if !clientRequested {

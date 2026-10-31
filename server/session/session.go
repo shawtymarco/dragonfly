@@ -92,6 +92,7 @@ type Session struct {
 	openedWindow                   atomic.Pointer[inventory.Inventory]
 	openedPos                      atomic.Pointer[cube.Pos]
 	openedVirtualPair              atomic.Pointer[cube.Pos]
+	openedTrade                    atomic.Pointer[tradeWindow]
 	swingingArm                    atomic.Bool
 	changingSlot                   atomic.Bool
 	clientItemUsePrediction        atomic.Pointer[clientItemUsePrediction]

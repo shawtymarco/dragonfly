@@ -363,6 +363,10 @@ func (s *Session) invByID(id int32, tx *world.Tx) (*inventory.Inventory, bool) {
 		switch id {
 		case protocol.ContainerLevelEntity:
 			return s.openedWindow.Load(), true
+		case protocol.ContainerTradeTwoIngredientOne, protocol.ContainerTradeTwoIngredientTwo:
+			if s.openedTrade.Load() != nil {
+				return s.ui, true
+			}
 		case protocol.ContainerShulkerBox:
 			if _, shulkerbox := tx.Block(*s.openedPos.Load()).(block.ShulkerBox); shulkerbox {
 				return s.openedWindow.Load(), true

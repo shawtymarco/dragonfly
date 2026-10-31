@@ -27,6 +27,7 @@ var DefaultRegistry = conf.New([]world.EntityType{
 	SplashPotionType,
 	TNTType,
 	TextType,
+	VillagerType,
 })
 
 var conf = world.EntityRegistryConfig{

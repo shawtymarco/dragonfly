@@ -75,6 +75,9 @@ func (s *Session) addSpecificMetadata(e any, m protocol.EntityMetadata) {
 	if i, ok := e.(immobile); ok && i.Immobile() {
 		m.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagNoAI)
 	}
+	if i, ok := e.(interactive); ok {
+		m[protocol.EntityDataKeyInteractText] = i.InteractText()
+	}
 	if o, ok := e.(onFire); ok && o.OnFireDuration() > 0 {
 		m.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagOnFire)
 	}
@@ -220,6 +223,10 @@ func writeNameTagMetadata(m protocol.EntityMetadata, nameTag string, alwaysShow 
 	} else {
 		m.UnsetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagAlwaysShowName)
 	}
+}
+
+type interactive interface {
+	InteractText() string
 }
 
 type sneaker interface {

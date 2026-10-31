@@ -3022,6 +3022,14 @@ func (p *Player) OpenInventory(inv *inventory.Inventory, title string, tx *world
 	}
 }
 
+// OpenTrade opens a trade window offering the recipes passed, held by the entity passed. The items of an offer
+// are exchanged by the session itself. The entity must be visible to the player.
+func (p *Player) OpenTrade(holder world.Entity, title string, recipes []session.TradeRecipe, tx *world.Tx) {
+	if p.session() != session.Nop {
+		p.session().OpenTrade(holder, title, recipes, cube.PosFromVec3(p.Position()), tx)
+	}
+}
+
 // CloseInventory closes the currently opened container from the server side.
 func (p *Player) CloseInventory(tx *world.Tx) {
 	if p.session() != session.Nop {
