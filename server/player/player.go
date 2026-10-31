@@ -2837,6 +2837,12 @@ func (p *Player) PickupPriority() int {
 	return p.pickupPriority
 }
 
+// FlushPackets sends what is queued for the player now, instead of with the next
+// batch. It is limited to once per tick.
+func (p *Player) FlushPackets() {
+	p.session().FlushItemUse()
+}
+
 // SetCustomSoundsMuted sets whether the player hears sound.Custom sounds that
 // are not marked Always.
 func (p *Player) SetCustomSoundsMuted(muted bool) {
@@ -3438,6 +3444,12 @@ func (p *Player) checkEntityInsiders(entityBBox cube.BBox) {
 			for z := low[2]; z <= high[2]; z++ {
 				blockPos := cube.Pos{x, y, z}
 				b := p.tx.Block(blockPos)
+				if _, cobweb := b.(block.Cobweb); cobweb {
+					// A client moves itself and slows down in a cobweb on its own. Slowing it here
+					// too would send it a near zero velocity every tick, which stops it falling.
+					p.ResetFallDistance()
+					continue
+				}
 				if collide, ok := b.(block.EntityInsider); ok {
 					collide.EntityInside(blockPos, p.tx, p)
 					if _, liquid := b.(world.Liquid); liquid {
