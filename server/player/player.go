@@ -2448,7 +2448,7 @@ func (p *Player) PlaceBlock(pos cube.Pos, b world.Block, ctx *item.UseContext) {
 // placeBlock makes the player place the block passed at the position passed, granted it is within the range
 // of the player. A bool is returned indicating if a block was placed successfully.
 func (p *Player) placeBlock(pos cube.Pos, b world.Block, ignoreBBox bool) bool {
-	if !p.canReach(pos.Vec3Centre()) || !p.GameMode().AllowsEditing() {
+	if !p.canReach(pos.Vec3Centre()) || !p.canEdit(pos) {
 		p.resendNearbyBlocks(pos, cube.Faces()...)
 		return false
 	}
@@ -2517,7 +2517,7 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 		// Don't do anything if the position broken is already air.
 		return
 	}
-	if !p.canReach(pos.Vec3Centre()) || !p.GameMode().AllowsEditing() {
+	if !p.canReach(pos.Vec3Centre()) || !p.canEdit(pos) {
 		p.resendNearbyBlocks(pos)
 		return
 	}
