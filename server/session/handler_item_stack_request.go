@@ -337,9 +337,9 @@ func (h *ItemStackRequestHandler) verifySlot(slot protocol.StackRequestSlotInfo,
 	if err != nil {
 		return err
 	}
-	clientID, err := h.resolveID(inv, slot)
-	if err != nil {
-		return err
+	clientID, known := h.resolveID(inv, slot)
+	if !known {
+		return nil
 	}
 	// The client seems to send negative stack network IDs for predictions, which we can ignore. We'll simply
 	// override this network ID later.
@@ -352,23 +352,16 @@ func (h *ItemStackRequestHandler) verifySlot(slot protocol.StackRequestSlotInfo,
 // resolveID resolves the stack network ID in the slot passed. If it is negative, it points to an earlier
 // request, in which case it will look it up in the changes of an earlier response to a request to find the
 // actual stack network ID in the slot. If it is positive, the ID will be returned again.
-func (h *ItemStackRequestHandler) resolveID(inv *inventory.Inventory, slot protocol.StackRequestSlotInfo) (int32, error) {
+// false is returned for a negative ID with no record. That is a client prediction with no response to it: item
+// use predicts held and armour slots under its legacy request ID, and its echo is suppressed, so the slot keeps the
+// ID. Refusing it would lock the slot until the next full resend. The transfer works on the server's own stack, so
+// the check is only a sync check, and the response gives the client the real ID.
+func (h *ItemStackRequestHandler) resolveID(inv *inventory.Inventory, slot protocol.StackRequestSlotInfo) (int32, bool) {
 	if slot.StackNetworkID >= 0 {
-		return slot.StackNetworkID, nil
+		return slot.StackNetworkID, true
 	}
-	containerChanges, ok := h.responseChanges[slot.StackNetworkID]
-	if !ok {
-		return 0, fmt.Errorf("slot pointed to stack request %v, but request could not be found", slot.StackNetworkID)
-	}
-	changes, ok := containerChanges[inv]
-	if !ok {
-		return 0, fmt.Errorf("slot pointed to stack request %v with container %v, but that container was not changed in the request", slot.StackNetworkID, slot.Container.ContainerID)
-	}
-	actual, ok := changes[slot.Slot]
-	if !ok {
-		return 0, fmt.Errorf("slot pointed to stack request %v with container %v and slot %v, but that slot was not changed in the request", slot.StackNetworkID, slot.Container.ContainerID, slot.Slot)
-	}
-	return actual.id, nil
+	actual, ok := h.responseChanges[slot.StackNetworkID][inv][slot.Slot]
+	return actual.id, ok
 }
 
 // tryAcknowledgeChanges iterates through all cached response changes and checks if the stack request slot
