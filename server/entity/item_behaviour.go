@@ -139,7 +139,9 @@ func (i *ItemBehaviour) checkNearby(e *Ent, tx *world.Tx) {
 			continue
 		}
 		if collector, ok := other.(Collector); ok {
-			collectors = append(collectors, collector)
+			if inPickupRange(collector.Position(), pos) {
+				collectors = append(collectors, collector)
+			}
 		} else if other.H().Type() == ItemType {
 			// Another item entity was in range to merge with.
 			if i.merge(e, other.(*Ent), tx) {
@@ -159,6 +161,15 @@ func (i *ItemBehaviour) checkNearby(e *Ent, tx *world.Tx) {
 			return
 		}
 	}
+}
+
+// pickupRange is the distance in blocks over which a collector reaches an item.
+const pickupRange = 1.25
+
+// inPickupRange checks if a collector at pos may reach an item at itemPos. The
+// box in checkNearby only finds candidates: its corners reach two blocks away.
+func inPickupRange(pos, itemPos mgl64.Vec3) bool {
+	return pos.Sub(itemPos).LenSqr() <= pickupRange*pickupRange
 }
 
 type pickupPrioritiser interface {
