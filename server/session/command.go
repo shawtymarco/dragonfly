@@ -1,7 +1,9 @@
 package session
 
 import (
+	"maps"
 	"math"
+	"slices"
 
 	"github.com/df-mc/dragonfly/server/cmd"
 	"github.com/go-gl/mathgl/mgl64"
@@ -65,7 +67,9 @@ func BuildAvailableCommands(
 
 	suffixIndices := map[string]uint32{}
 
-	for alias, c := range commands {
+	// Sorted, so that every player and every resend gets the same packet.
+	for _, alias := range slices.Sorted(maps.Keys(commands)) {
+		c := commands[alias]
 		if c.Name() != alias {
 			// Don't add duplicate entries for aliases.
 			continue
@@ -213,8 +217,13 @@ func valueToParamType(i cmd.ParamInfo, source cmd.Source) (t uint32, enum comman
 			Options: enum.Options(source),
 		}
 	}
-	if param, ok := i.Value.(cmd.Parameter); ok && param.Type() == "x y z" {
-		return protocol.CommandArgTypePosition, enum
+	if param, ok := i.Value.(cmd.Parameter); ok {
+		switch param.Type() {
+		case "x y z":
+			return protocol.CommandArgTypePosition, enum
+		case "target":
+			return protocol.CommandArgTypeTarget, enum
+		}
 	}
 	return protocol.CommandArgTypeRValue, enum
 }
