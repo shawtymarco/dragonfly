@@ -321,7 +321,9 @@ func (h *InventoryTransactionHandler) handleUseItemTransaction(data *protocol.Us
 			break
 		}
 		held, _ := c.HeldItems()
-		if usesItemInAir(held) {
+		if blockClickUsesItemInAir(held, data.TriggerType, c.UsingItem()) {
+			// A plain item activates once per press, so its repeats here are filtered like those of a handled click.
+			h.lastRightClick.blockHandled = !usesLongItem(held)
 			c.UseItem()
 			fallback = true
 			outcome = "air_fallback"
@@ -363,6 +365,15 @@ func (h *InventoryTransactionHandler) repeatedRightClick(data *protocol.UseItemT
 func vec3DistanceSquared(a, b mgl32.Vec3) float32 {
 	delta := a.Sub(b)
 	return delta.Dot(delta)
+}
+
+// blockClickUsesItemInAir reports whether a block click nothing handled uses the held item as a click in the air would,
+// so that holding use against a block repeats no more than holding it in the air.
+func blockClickUsesItemInAir(held item.Stack, trigger uint32, using bool) bool {
+	if !usesItemInAir(held) {
+		return false
+	}
+	return trigger != protocol.TriggerTypeSimulationTick || !skipAirSimulationTick(held, using)
 }
 
 func usesItemInAir(held item.Stack) bool {

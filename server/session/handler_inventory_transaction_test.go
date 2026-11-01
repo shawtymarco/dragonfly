@@ -93,6 +93,31 @@ func TestAirUseFallbackItems(t *testing.T) {
 	}
 }
 
+func TestBlockClickAirFallbackFollowsAirRepeats(t *testing.T) {
+	helmet := item.NewStack(item.Helmet{Tier: item.ArmourTierIron{}}, 1)
+	tests := []struct {
+		name    string
+		stack   item.Stack
+		trigger uint32
+		using   bool
+		want    bool
+	}{
+		{name: "armour on press", stack: helmet, trigger: protocol.TriggerTypePlayerInput, want: true},
+		{name: "armour held", stack: helmet, trigger: protocol.TriggerTypeSimulationTick},
+		{name: "throwable held", stack: item.NewStack(item.EnderPearl{}, 1), trigger: protocol.TriggerTypeSimulationTick},
+		{name: "food held", stack: item.NewStack(item.Apple{}, 1), trigger: protocol.TriggerTypeSimulationTick, want: true},
+		{name: "crossbow charging", stack: item.NewStack(item.Crossbow{}, 1), trigger: protocol.TriggerTypeSimulationTick, using: true, want: true},
+		{name: "plain item", stack: item.NewStack(item.Arrow{}, 1), trigger: protocol.TriggerTypePlayerInput},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := blockClickUsesItemInAir(test.stack, test.trigger, test.using); got != test.want {
+				t.Fatalf("blockClickUsesItemInAir() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestLongUseRecoveryItems(t *testing.T) {
 	tests := []struct {
 		name  string
