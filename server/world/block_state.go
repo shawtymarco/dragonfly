@@ -87,6 +87,11 @@ func (b unknownBlock) Hash() (uint64, uint64) {
 
 // EncodeNBT ...
 func (b unknownBlock) EncodeNBT() map[string]any {
+	if b.data == nil {
+		// BlockByName returns unknown blocks without NBT, which still save as block
+		// entities: mcdb adds their position to this map.
+		return map[string]any{}
+	}
 	return maps.Clone(b.data)
 }
 
