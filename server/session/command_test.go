@@ -56,3 +56,25 @@ func TestBuildAvailableCommandsIsStable(t *testing.T) {
 		t.Fatalf("expected a target parameter, got %#x", param.Type)
 	}
 }
+
+type commandTestOptionalText struct {
+	Player commandTestTarget         `cmd:"player"`
+	Reason cmd.Optional[cmd.Varargs] `cmd:"reason"`
+}
+
+func (commandTestOptionalText) Run(cmd.Source, *cmd.Output, *world.Tx) {}
+
+// TestBuildAvailableCommandsMatchesGeyser verifies the two rules the client needs for usage hints: every command is
+// marked as no cheat, and text after a target is not optional.
+func TestBuildAvailableCommandsMatchesGeyser(t *testing.T) {
+	pk, _ := BuildAvailableCommands(map[string]cmd.Command{
+		"kick": cmd.New("kick", "", nil, commandTestOptionalText{}),
+	}, commandTestSource{}, nil)
+	c := pk.Commands[0]
+	if c.Flags != commandFlagNotCheat {
+		t.Fatalf("expected the not cheat flag, got %#x", c.Flags)
+	}
+	if c.Overloads[0].Parameters[1].Optional {
+		t.Fatal("expected text after a target to be sent as required")
+	}
+}

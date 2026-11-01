@@ -47,6 +47,10 @@ type translation interface {
 	Params(l language.Tag) []string
 }
 
+// commandFlagNotCheat marks a command as no cheat. Geyser sets it on every command, and vanilla command names reach the
+// client under the same rules as vanilla commands.
+const commandFlagNotCheat = 0x80
+
 // BuildAvailableCommands builds an AvailableCommands packet and the runnable command map for the Source
 // passed. The input map may contain aliases. It returns the AvailableCommands packet and the runnable command map
 // for the commands that the Source can execute.
@@ -131,7 +135,7 @@ func BuildAvailableCommands(
 				overloads[i].Parameters = append(overloads[i].Parameters, protocol.CommandParameter{
 					Name:     paramInfo.Name,
 					Type:     t,
-					Optional: paramInfo.Optional,
+					Optional: paramInfo.Optional && !followsWord(overloads[i].Parameters, t),
 					Options:  opt,
 				})
 			}
@@ -139,6 +143,7 @@ func BuildAvailableCommands(
 		pk.Commands = append(pk.Commands, protocol.Command{
 			Name:            c.Name(),
 			Description:     c.Description(),
+			Flags:           commandFlagNotCheat,
 			AliasesOffset:   aliasesIndex,
 			PermissionLevel: protocol.CommandPermissionLevelAny,
 			Overloads:       overloads,
@@ -168,6 +173,17 @@ func BuildAvailableCommands(
 		pk.Enums = append(pk.Enums, protoEnum)
 	}
 	return pk, m
+}
+
+// followsWord reports whether a parameter of type t is free text right after a string or target. The client does not take
+// optional text there, as Geyser notes for kick and ban. Such a parameter is sent as required, which only changes the
+// usage shown: the command still parses without it.
+func followsWord(previous []protocol.CommandParameter, t uint32) bool {
+	if t != protocol.CommandArgValid|protocol.CommandArgTypeRawText || len(previous) == 0 {
+		return false
+	}
+	last := previous[len(previous)-1].Type
+	return last == protocol.CommandArgValid|protocol.CommandArgTypeString || last == protocol.CommandArgValid|protocol.CommandArgTypeTarget
 }
 
 // sendAvailableCommands sends all available commands of the server. Once sent, they will be visible in the
