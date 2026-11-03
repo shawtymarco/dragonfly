@@ -134,6 +134,23 @@ func (e *Ent) SetAlwaysShowNameTag(alwaysShow bool) {
 	e.updateState()
 }
 
+// Glowing reports whether the entity is marked glowing. It can be changed
+// using SetGlowing.
+func (e *Ent) Glowing() bool {
+	return e.data.Glowing
+}
+
+// SetGlowing marks the entity glowing or not. Bedrock has no glowing flag, so
+// a glowing entity is sent with the Enchanted actor flag, which resource packs
+// read as query.is_enchanted to draw it differently.
+func (e *Ent) SetGlowing(glowing bool) {
+	if e.data.Glowing == glowing {
+		return
+	}
+	e.data.Glowing = glowing
+	e.updateState()
+}
+
 // updateState updates the state of the entity for all viewers of the entity.
 func (e *Ent) updateState() {
 	for _, v := range e.tx.Viewers(e.data.Pos) {

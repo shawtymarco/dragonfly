@@ -427,8 +427,11 @@ type EntityData struct {
 	Rot               cube.Rotation
 	Name              string
 	AlwaysShowNameTag bool
-	FireDuration      time.Duration
-	Age               time.Duration
+	// Glowing is the per-entity glowing state, see Ent.SetGlowing. It is not
+	// saved with the entity.
+	Glowing      bool
+	FireDuration time.Duration
+	Age          time.Duration
 
 	Data any
 }
