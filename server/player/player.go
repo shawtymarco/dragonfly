@@ -61,7 +61,7 @@ type playerData struct {
 	heldSlot                     *uint32
 
 	sneaking, sprinting, swimming, gliding, crawling, flying,
-	invisible, immobile, onGround, usingItem bool
+	invisible, immobile, onGround, usingItem, glowing bool
 	swimmingDisabled bool
 
 	sleeping bool
@@ -1508,6 +1508,23 @@ func (p *Player) SetVisible() {
 // Invisible checks if the Player is currently invisible.
 func (p *Player) Invisible() bool {
 	return p.invisible
+}
+
+// Glowing reports whether the Player is marked glowing. It can be changed
+// using SetGlowing.
+func (p *Player) Glowing() bool {
+	return p.glowing
+}
+
+// SetGlowing marks the Player glowing or not. Bedrock has no glowing flag, so
+// a glowing player is sent with the Enchanted actor flag, which resource packs
+// read as query.is_enchanted to draw it differently.
+func (p *Player) SetGlowing(glowing bool) {
+	if p.glowing == glowing {
+		return
+	}
+	p.glowing = glowing
+	p.updateState()
 }
 
 // SetImmobile prevents the player from moving around, but still allows them to look around.
