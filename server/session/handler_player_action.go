@@ -67,6 +67,9 @@ func handlePlayerAction(action int32, face int32, pos protocol.BlockPos, entityR
 		// Don't do anything for this action.
 	case protocol.PlayerActionCreativePlayerDestroyBlock:
 		// Don't do anything for this action.
+	case protocol.PlayerActionBuildDenied:
+		// The client reports that it may not build here. Placement is checked
+		// server-side, so there is nothing to do.
 	case protocol.PlayerActionMissedSwing:
 		s.swingingArm.Store(true)
 		defer s.swingingArm.Store(false)
