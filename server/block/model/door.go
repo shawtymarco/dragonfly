@@ -14,11 +14,23 @@ type Door struct {
 	Open bool
 	// Right specifies the attachment side of the door and, with that, the direction it opens in.
 	Right bool
+	// Top specifies if the model is of the upper half of the door.
+	Top bool
 }
 
 // BBox returns a physics.BBox that depends on if the Door is open, what direction it is facing and whether it is
-// attached to the right/left side of a block.
-func (d Door) BBox(cube.Pos, world.BlockSource) []cube.BBox {
+// attached to the right/left side of a block. Like the client, it takes the hinge from the upper half and the open
+// state from the lower half, since worlds from vanilla can hold a stale copy of either in the other half.
+func (d Door) BBox(pos cube.Pos, s world.BlockSource) []cube.BBox {
+	if s != nil {
+		if d.Top {
+			if lower, ok := s.Block(pos.Side(cube.FaceDown)).Model().(Door); ok && !lower.Top {
+				d.Open = lower.Open
+			}
+		} else if upper, ok := s.Block(pos.Side(cube.FaceUp)).Model().(Door); ok && upper.Top {
+			d.Right = upper.Right
+		}
+	}
 	if d.Open {
 		if d.Right {
 			return []cube.BBox{full.ExtendTowards(d.Facing.RotateLeft().Face(), -0.8125)}
